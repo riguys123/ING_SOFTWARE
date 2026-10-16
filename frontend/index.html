@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SmartCell Commerce — Seguridad</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+    <div id="app"><p class="cargando-inicial">Cargando SmartCell…</p></div>
+
+    <script src="assets/js/config.js"></script>
+    <script>
+    /*
+     * Carga Vue 3 y Vue Router: primero desde assets/vendor/ (modo sin internet);
+     * si no están ahí, desde un CDN. Luego carga los scripts de la aplicación en orden.
+     */
+    (function () {
+        function cargar(src) {
+            return new Promise(function (ok, fallo) {
+                var s = document.createElement('script');
+                s.src = src; s.async = false;
+                s.onload = ok;
+                s.onerror = function () { fallo(new Error(src)); };
+                document.head.appendChild(s);
+            });
+        }
+        async function primero(lista) {
+            for (var i = 0; i < lista.length; i++) {
+                try { await cargar(lista[i]); return; } catch (e) { /* prueba la siguiente fuente */ }
+            }
+            throw new Error('No se pudo cargar: ' + lista[0]);
+        }
+        var app = [
+            'assets/js/api.js', 'assets/js/store.js',
+            'assets/js/components/icono.js', 'assets/js/components/modal.js',
+            'assets/js/components/paginador.js', 'assets/js/components/toasts.js',
+            'assets/js/views/login.js', 'assets/js/views/dashboard.js',
+            'assets/js/views/usuarios-lista.js', 'assets/js/views/usuario-form.js',
+            'assets/js/views/perfil.js', 'assets/js/views/roles.js',
+            'assets/js/views/auditoria.js', 'assets/js/views/otras.js',
+            'assets/js/router.js', 'assets/js/app.js'
+        ];
+        (async function () {
+            try {
+                await primero([
+                    'assets/vendor/vue.global.prod.js',
+                    'https://cdnjs.cloudflare.com/ajax/libs/vue/3.5.13/vue.global.prod.min.js',
+                    'https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js'
+                ]);
+                await primero([
+                    'assets/vendor/vue-router.global.prod.js',
+                    'https://cdn.jsdelivr.net/npm/vue-router@4.5.0/dist/vue-router.global.prod.js',
+                    'https://unpkg.com/vue-router@4.5.0/dist/vue-router.global.prod.js'
+                ]);
+                for (var i = 0; i < app.length; i++) { await cargar(app[i]); }
+            } catch (e) {
+                document.getElementById('app').innerHTML =
+                    '<div class="error-carga"><h2>No se pudo iniciar la aplicación</h2>' +
+                    '<p>No se encontraron Vue / Vue Router. Conéctate a internet o copia los archivos ' +
+                    '<code>vue.global.prod.js</code> y <code>vue-router.global.prod.js</code> en ' +
+                    '<code>frontend/assets/vendor/</code> (ver README).</p></div>';
+                console.error(e);
+            }
+        })();
+    })();
+    </script>
+</body>
+</html>

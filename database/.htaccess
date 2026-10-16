@@ -1,0 +1,2 @@
+# La base de datos SQLite nunca debe descargarse desde el navegador
+Require all denied

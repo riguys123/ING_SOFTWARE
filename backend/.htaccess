@@ -1,0 +1,3 @@
+# El código fuente del backend no debe ser accesible desde el navegador.
+# Solo public/ queda abierto (ver backend/public/.htaccess).
+Require all denied

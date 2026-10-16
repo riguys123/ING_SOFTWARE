@@ -1,0 +1,7 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # /api/...  ->  backend/public/index.php  (API REST)
+    RewriteRule ^api/(.*)$ backend/public/index.php [QSA,L]
+</IfModule>
