@@ -5,12 +5,13 @@ SC.Modal = {
         titulo: String,
         textoConfirmar: { type: String, default: 'Confirmar' },
         peligro: Boolean,
-        cargando: Boolean
+        cargando: Boolean,
+        grande: Boolean            // ancho extra para formularios
     },
     emits: ['confirmar', 'cancelar'],
     template: `
       <div v-if="abierto" class="modal-fondo" @click.self="$emit('cancelar')" @keydown.esc="$emit('cancelar')">
-        <div class="modal" role="dialog" aria-modal="true" :aria-label="titulo">
+        <div class="modal" :class="{ 'modal-grande': grande }" role="dialog" aria-modal="true" :aria-label="titulo">
           <h3>{{ titulo }}</h3>
           <div class="modal-cuerpo"><slot></slot></div>
           <div class="modal-acciones">

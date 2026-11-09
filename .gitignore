@@ -1,0 +1,5 @@
+database/*.sqlite*
+database/.jwt_secret
+frontend/uploads/productos/*
+frontend/uploads/promociones/*
+!frontend/uploads/.htaccess

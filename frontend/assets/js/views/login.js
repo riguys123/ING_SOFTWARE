@@ -41,8 +41,9 @@ SC.views.Login = {
             </form>
 
             <p class="pista">
-              Usuario de prueba: <code>admin@smartcell.com</code><br>
-              Contraseña: <code>Admin123!</code>
+              <router-link to="/registro">Crear una cuenta</router-link> · <router-link to="/tienda">Ver catálogo</router-link><br><br>
+              Admin: <code>admin@smartcell.com</code> / <code>Admin123!</code><br>
+              Cliente: <code>cliente@smartcell.com</code> / <code>Smart1234!</code>
             </p>
           </div>
         </div>
@@ -65,7 +66,7 @@ SC.views.Login = {
                 SC.store.aplicarSesion(r.data);
                 const redir = this.$route.query.redir;
                 // Solo rutas internas (evita redirecciones abiertas)
-                const destino = (typeof redir === 'string' && redir.startsWith('/') && !redir.startsWith('//')) ? redir : '/panel';
+                const destino = (typeof redir === 'string' && redir.startsWith('/') && !redir.startsWith('//')) ? redir : SC.store.inicio();
                 this.$router.replace(destino);
             } catch (e) {
                 this.error = e.mensaje;

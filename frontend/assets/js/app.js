@@ -1,16 +1,19 @@
 /* Aplicación raíz: layout con menú lateral que cambia según el rol */
 SC.App = {
     template: `
-      <div v-if="mostrarLayout" class="app" :class="{ 'menu-abierto': store.menuAbierto }">
+      <div v-if="layout === 'panel'" class="app" :class="{ 'menu-abierto': store.menuAbierto }">
         <aside class="sidebar">
           <div class="sidebar-marca">Smart<span>Cell</span></div>
           <nav class="menu">
             <template v-for="g in menu" :key="g.nombre">
               <div class="menu-grupo">{{ g.nombre }}</div>
-              <router-link v-for="m in g.items" :key="m.clave" :to="m.ruta" class="menu-item">
+              <router-link v-for="m in g.items" :key="m.ruta" :to="m.ruta" class="menu-item">
                 <sc-icono :nombre="m.icono"/> <span>{{ m.texto }}</span>
+                <span v-if="m.contador === 'mensajes' && store.mensajesPendientes" class="insignia">{{ store.mensajesPendientes }}</span>
               </router-link>
             </template>
+            <div class="menu-grupo">Tienda</div>
+            <router-link to="/tienda" class="menu-item"><sc-icono nombre="carrito"/> <span>Ver tienda</span></router-link>
           </nav>
           <div class="sidebar-usuario">
             <span class="avatar">{{ iniciales }}</span>
@@ -32,14 +35,31 @@ SC.App = {
             </button>
             <span class="topbar-marca">Smart<span>Cell</span> Commerce</span>
           </header>
-          <main class="main"><router-view/></main>
+          <main class="main"><router-view :key="$route.path"/></main>
         </div>
       </div>
+
+      <div v-else-if="layout === 'tienda'" class="tienda-app">
+        <sc-tiendabar/>
+        <main class="tienda-main"><router-view :key="$route.path"/></main>
+        <footer class="tienda-pie">SmartCell Commerce · Proyecto universitario · Pasarela de pagos simulada</footer>
+      </div>
+
       <router-view v-else/>
       <sc-toasts/>`,
     computed: {
         store() { return SC.store; },
-        mostrarLayout() { return !!SC.store.user && !this.$route.meta.publico; },
+        /*
+         * 'panel'  -> menú lateral del personal
+         * 'tienda' -> barra superior de la tienda (visitantes, clientes y rutas de la tienda)
+         * 'ninguno'-> login y registro, que traen su propio diseño
+         */
+        layout() {
+            const r = this.$route, u = SC.store.user;
+            if (r.meta.publico) return 'ninguno';
+            if (r.meta.tienda || (u && u.rol === 'Cliente')) return 'tienda';
+            return u ? 'panel' : 'ninguno';
+        },
         iniciales() { return SC.util.iniciales(SC.store.user.nombre); },
         /** Menú agrupado, solo con los módulos que el rol puede ver */
         menu() {
@@ -55,8 +75,7 @@ SC.App = {
     watch: { '$route'() { SC.store.menuAbierto = false; } },
     methods: {
         async salir() {
-            try { await SC.api.post('/auth/logout'); } catch (e) { /* aunque falle, limpiamos el cliente */ }
-            SC.store.limpiar();
+            await SC.store.cerrarSesion();
             SC.store.ok('Sesión cerrada.');
             this.$router.replace('/login');
         }
@@ -68,6 +87,17 @@ app.component('sc-icono', SC.Icono);
 app.component('sc-modal', SC.Modal);
 app.component('sc-paginador', SC.Paginador);
 app.component('sc-toasts', SC.Toasts);
+app.component('sc-foto', SC.Foto);
+app.component('sc-estado', SC.Estado);
+app.component('sc-tiendabar', SC.TiendaBar);
+app.component('sc-precio', SC.Precio);
+app.component('sc-banner', SC.Banner);
+app.component('sc-subir-fotos', SC.SubirFotos);
+app.component('sc-grafico-linea', SC.GraficoLinea);
+app.component('sc-grafico-barras', SC.GraficoBarras);
+app.component('sc-barras-h', SC.BarrasH);
+app.component('sc-dona', SC.Dona);
+app.config.globalProperties.$bs = SC.util.bs;      // {{ $bs(1450) }} -> "Bs 1.450" en cualquier plantilla
 app.use(SC.router);
 
 /* Sesión vencida o cuenta dada de baja: volver al login con aviso */
@@ -78,3 +108,6 @@ SC.onSesionExpirada = function () {
 };
 
 app.mount('#app');
+
+/* Los mensajes de WhatsApp pendientes se refrescan solos cada minuto (insignia del menú) */
+setInterval(() => { if (document.visibilityState === 'visible') SC.store.contarMensajes(); }, 60000);

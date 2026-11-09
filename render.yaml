@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: smartcell
+    runtime: docker
+    plan: free
+    healthCheckPath: /frontend/

@@ -5,6 +5,10 @@
  * Emula lo que hace el .htaccess (reescritura de /api/...).
  * En XAMPP NO se usa.
  */
+// Detrás del proxy de Render (HTTPS termina allí): marcar la petición como segura
+if (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') {
+    $_SERVER['HTTPS'] = 'on';
+}
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // Bloquea carpetas internas

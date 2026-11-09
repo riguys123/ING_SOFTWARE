@@ -24,6 +24,33 @@ function iniciarSesion(): void
     session_start();
 }
 
+/** Usuario activo por id, con su rol (consulta fresca a la BD) */
+function usuarioPorId(int $id): ?array
+{
+    $stmt = Database::pdo()->prepare(
+        'SELECT u.id, u.nombre, u.email, u.activo, u.rol_id, r.nombre AS rol, r.area
+           FROM usuarios u JOIN roles r ON r.id = u.rol_id
+          WHERE u.id = ?'
+    );
+    $stmt->execute([$id]);
+    $u = $stmt->fetch();
+    return ($u && (int)$u['activo'] === 1) ? $u : null;
+}
+
+/** Token JWT enviado en "Authorization: Bearer xxx" (null si no viene) */
+function tokenBearer(): ?string
+{
+    $h = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    if ($h === '' && function_exists('getallheaders')) {
+        foreach (getallheaders() as $k => $v) {
+            if (strcasecmp($k, 'Authorization') === 0) {
+                $h = $v;
+            }
+        }
+    }
+    return preg_match('/^Bearer\s+(\S+)$/i', $h, $m) ? $m[1] : null;
+}
+
 /**
  * Devuelve el usuario autenticado leyéndolo de la BD en cada petición,
  * así una baja o cambio de rol surte efecto de inmediato.
@@ -34,23 +61,34 @@ function usuarioActual(): ?array
     if (empty($_SESSION['usuario_id'])) {
         return null;
     }
-    $stmt = Database::pdo()->prepare(
-        'SELECT u.id, u.nombre, u.email, u.activo, u.rol_id, r.nombre AS rol, r.area
-           FROM usuarios u JOIN roles r ON r.id = u.rol_id
-          WHERE u.id = ?'
-    );
-    $stmt->execute([$_SESSION['usuario_id']]);
-    $u = $stmt->fetch();
-    if (!$u || (int)$u['activo'] !== 1) {
+    $u = usuarioPorId((int)$_SESSION['usuario_id']);
+    if (!$u) {
         cerrarSesion();
-        return null;
     }
     return $u;
 }
 
-/** Exige sesión válida; responde 401 si no existe o expiró por inactividad */
+/**
+ * Exige autenticación. Acepta DOS mecanismos:
+ *   1) Token JWT:  Authorization: Bearer <token>   (Postman, apps móviles, otros servicios)
+ *   2) Sesión PHP con cookie HttpOnly              (el frontend Vue de este proyecto)
+ * Responde 401 si no hay credenciales válidas.
+ */
 function requerirLogin(): array
 {
+    $token = tokenBearer();
+    if ($token !== null) {
+        $payload = Jwt::verificar($token);
+        if ($payload === null) {
+            Response::error(401, 'token_invalido', 'El token es inválido o ya venció. Inicia sesión nuevamente.');
+        }
+        $u = usuarioPorId((int)$payload['sub']);   // el rol se lee de la BD, no del token
+        if ($u === null) {
+            Response::error(401, 'no_autenticado', 'Tu cuenta ya no está activa.');
+        }
+        return $u;
+    }
+
     iniciarSesion();
     if (empty($_SESSION['usuario_id'])) {
         Response::error(401, 'no_autenticado', 'Debes iniciar sesión.');
@@ -139,4 +177,29 @@ function modulosDeRol(int $rolId): array
     $stmt = Database::pdo()->prepare('SELECT modulo_clave, nivel FROM permisos_rol WHERE rol_id = ?');
     $stmt->execute([$rolId]);
     return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+}
+
+/** ¿El usuario tiene el módulo (con al menos ese nivel) en la matriz permisos_rol? */
+function tieneModulo(array $usuario, string $clave, string $nivel = 'lectura'): bool
+{
+    $actual = modulosDeRol((int)$usuario['rol_id'])[$clave] ?? null;
+    if ($actual === null) {
+        return false;
+    }
+    return $nivel === 'lectura' || $actual === 'total';
+}
+
+/**
+ * RBAC basado en la matriz de permisos de la BD (tabla permisos_rol).
+ *   requerirModulo('inventario')           -> lectura o total
+ *   requerirModulo('inventario', 'total')  -> solo escritura
+ */
+function requerirModulo(string $clave, string $nivel = 'lectura'): array
+{
+    $usuario = requerirLogin();
+    if (!tieneModulo($usuario, $clave, $nivel)) {
+        Response::error(403, 'acceso_denegado',
+            'Tu rol (' . $usuario['rol'] . ') no tiene permiso para esta acción.');
+    }
+    return $usuario;
 }

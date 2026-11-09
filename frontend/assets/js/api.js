@@ -32,7 +32,9 @@ SC.api = (function () {
             credentials: 'same-origin',
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         };
-        if (cuerpo !== undefined) {
+        if (cuerpo instanceof FormData) {
+            opciones.body = cuerpo;          // multipart: el navegador pone el Content-Type con su boundary
+        } else if (cuerpo !== undefined) {
             opciones.headers['Content-Type'] = 'application/json';
             opciones.body = JSON.stringify(cuerpo);
         }
@@ -63,6 +65,18 @@ SC.api = (function () {
         post:   (ruta, cuerpo) => pedir('POST', ruta, cuerpo || {}),
         put:    (ruta, cuerpo) => pedir('PUT', ruta, cuerpo),
         patch:  (ruta, cuerpo) => pedir('PATCH', ruta, cuerpo),
-        delete: (ruta)         => pedir('DELETE', ruta)
+        delete: (ruta)         => pedir('DELETE', ruta),
+        /** Sube un archivo: SC.api.subir('/productos/3/fotos', 'foto', archivoOBlob) */
+        subir:  (ruta, campo, archivo) => {
+            const fd = new FormData();
+            fd.append(campo, archivo, archivo.name || 'imagen.jpg');
+            return pedir('POST', ruta, fd);
+        },
+        /** URL absoluta de un GET (para descargar un CSV con un enlace normal; la sesión viaja en la cookie) */
+        url: (ruta, query) => {
+            const qs = new URLSearchParams();
+            Object.entries(query || {}).forEach(([k, v]) => { if (v !== '' && v != null) qs.append(k, v); });
+            return BASE + ruta + (qs.toString() ? '?' + qs : '');
+        }
     };
 })();

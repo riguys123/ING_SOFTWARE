@@ -1,0 +1,4 @@
+database/*.sqlite*
+database/.jwt_secret
+.git
+*.zip

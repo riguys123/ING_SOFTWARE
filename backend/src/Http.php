@@ -33,6 +33,22 @@ final class Response
     }
 }
 
+/**
+ * Error de negocio controlado. Los servicios lo lanzan (dentro o fuera de una transacción)
+ * y public/index.php lo convierte en la respuesta JSON de error correspondiente.
+ */
+final class ApiException extends RuntimeException
+{
+    public function __construct(
+        public int $status,
+        public string $codigo,
+        string $mensaje,
+        public ?array $detalles = null
+    ) {
+        parent::__construct($mensaje);
+    }
+}
+
 final class Request
 {
     private static ?array $cuerpo = null;

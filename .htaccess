@@ -2,6 +2,9 @@ Options -Indexes
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    # Apache no pasa el encabezado Authorization (JWT) a PHP por defecto: lo reenviamos
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
     # /api/...  ->  backend/public/index.php  (API REST)
     RewriteRule ^api/(.*)$ backend/public/index.php [QSA,L]
 </IfModule>
