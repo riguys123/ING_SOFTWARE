@@ -44,10 +44,10 @@ SC.views.Promociones = {
               <div class="campo" :class="{ 'con-error': err.fecha_inicio }"><label>Desde *</label><input type="date" v-model="form.fecha_inicio"><span v-if="err.fecha_inicio" class="error-campo">{{ err.fecha_inicio }}</span></div>
               <div class="campo" :class="{ 'con-error': err.fecha_fin }"><label>Hasta *</label><input type="date" v-model="form.fecha_fin"><span v-if="err.fecha_fin" class="error-campo">{{ err.fecha_fin }}</span></div>
               <div class="campo" :class="{ 'con-error': err.producto_id }"><label>Producto</label>
-                <select v-model="form.producto_id" @change="if (form.producto_id) form.categoria_id = ''"><option value="">— Ninguno —</option><option v-for="p in productos" :key="p.id" :value="p.id">{{ p.marca }} {{ p.modelo }}</option></select>
+                <select v-model="form.producto_id" @change="form.producto_id && (form.categoria_id = '')"><option value="">— Ninguno —</option><option v-for="p in productos" :key="p.id" :value="p.id">{{ p.marca }} {{ p.modelo }}</option></select>
                 <span v-if="err.producto_id" class="error-campo">{{ err.producto_id }}</span></div>
               <div class="campo" :class="{ 'con-error': err.categoria_id }"><label>o toda una categoría</label>
-                <select v-model="form.categoria_id" @change="if (form.categoria_id) form.producto_id = ''"><option value="">— Ninguna —</option><option v-for="c in categorias" :key="c.id" :value="c.id">{{ c.nombre }}</option></select>
+                <select v-model="form.categoria_id" @change="form.categoria_id && (form.producto_id = '')"><option value="">— Ninguna —</option><option v-for="c in categorias" :key="c.id" :value="c.id">{{ c.nombre }}</option></select>
                 <span v-if="err.categoria_id" class="error-campo">{{ err.categoria_id }}</span></div>
             </div>
             <div class="campo" :class="{ 'con-error': err.descripcion }"><label>Texto del banner</label><input type="text" v-model.trim="form.descripcion" maxlength="200"><span v-if="err.descripcion" class="error-campo">{{ err.descripcion }}</span></div>
