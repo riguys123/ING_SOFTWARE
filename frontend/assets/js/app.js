@@ -21,6 +21,7 @@ SC.App = {
               <strong>{{ store.user.nombre }}</strong>
               <small>{{ store.user.rol }}</small>
             </div>
+            <sc-tema-boton/>
             <button class="btn-icono" @click="salir" title="Cerrar sesión" aria-label="Cerrar sesión">
               <sc-icono nombre="salir"/>
             </button>
@@ -34,6 +35,7 @@ SC.App = {
               <sc-icono nombre="menu" :tam="22"/>
             </button>
             <span class="topbar-marca">Smart<span>Cell</span> Commerce</span>
+            <sc-tema-boton class="topbar-tema"/>
           </header>
           <main class="main"><router-view :key="$route.path"/></main>
         </div>
@@ -45,7 +47,7 @@ SC.App = {
         <footer class="tienda-pie">SmartCell Commerce · Proyecto universitario · Pasarela de pagos simulada</footer>
       </div>
 
-      <router-view v-else/>
+      <template v-else><sc-tema-boton class="tema-flotante"/><router-view/></template>
       <sc-toasts/>`,
     computed: {
         store() { return SC.store; },
@@ -87,11 +89,14 @@ app.component('sc-icono', SC.Icono);
 app.component('sc-modal', SC.Modal);
 app.component('sc-paginador', SC.Paginador);
 app.component('sc-toasts', SC.Toasts);
+app.component('sc-tema-boton', SC.TemaBoton);
 app.component('sc-foto', SC.Foto);
 app.component('sc-estado', SC.Estado);
 app.component('sc-tiendabar', SC.TiendaBar);
 app.component('sc-precio', SC.Precio);
 app.component('sc-banner', SC.Banner);
+app.component('sc-escena', SC.Escena);
+app.component('sc-presentacion', SC.Presentacion);
 app.component('sc-subir-fotos', SC.SubirFotos);
 app.component('sc-grafico-linea', SC.GraficoLinea);
 app.component('sc-grafico-barras', SC.GraficoBarras);

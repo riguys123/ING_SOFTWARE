@@ -40,7 +40,7 @@ final class Uploads
     /** ¿Es una ruta subida por nosotros? (para no permitir borrar archivos arbitrarios) */
     public static function esPropia(string $ruta): bool
     {
-        return (bool)preg_match('#^uploads/(productos|promociones)/[a-f0-9]{20}\.(jpg|png|webp)$#', $ruta);
+        return (bool)preg_match('#^uploads/(productos|promociones|pagos)/[a-f0-9]{20}\.(jpg|png|webp)$#', $ruta);
     }
 
     public static function borrar(string $ruta): void

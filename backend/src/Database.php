@@ -11,9 +11,9 @@ final class Database
     {
         if (self::$pdo === null) {
             if (!is_file(DB_PATH)) {
-                throw new RuntimeException(
-                    'No existe la base de datos. Ejecuta: php database/seeder.php'
-                );
+                throw new ApiException(503, 'base_no_inicializada',
+                    'La base de datos todavía no existe. En la carpeta del proyecto ejecuta: '
+                    . 'C:\\xampp\\php\\php.exe database\\seeder.php');
             }
             $pdo = new PDO('sqlite:' . DB_PATH);
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -21,6 +21,11 @@ final class Database
             $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
             $pdo->exec('PRAGMA foreign_keys = ON');
             $pdo->exec('PRAGMA busy_timeout = 5000');
+            if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() < SCHEMA_VERSION) {
+                throw new ApiException(503, 'base_desactualizada',
+                    'La base de datos es de una versión anterior a estos archivos. '
+                    . 'Recréala con: C:\\xampp\\php\\php.exe database\\seeder.php (borra los datos y deja los de ejemplo).');
+            }
             self::$pdo = $pdo;
         }
         return self::$pdo;

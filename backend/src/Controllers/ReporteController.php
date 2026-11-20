@@ -41,11 +41,11 @@ final class ReporteController
                 "SELECT COALESCE(SUM(d.cantidad),0) FROM detalle_pedido d JOIN pagos g ON g.pedido_id = d.pedido_id AND g.estado = 'Aprobado'
                   WHERE date(g.fecha) BETWEEN ? AND ?", [$desde, $hoy]);
 
-            $porEnvio = ['Pendiente' => 0, 'En_preparacion' => 0, 'En_camino' => 0, 'Entregado' => 0, 'Cancelado' => 0];
+            $porEnvio = ['Pendiente' => 0, 'En_preparacion' => 0, 'Empacado' => 0, 'En_camino' => 0, 'Entregado' => 0, 'Finalizado' => 0, 'Cancelado' => 0];
             foreach (self::filas('SELECT estado_envio, COUNT(*) AS n FROM pedidos GROUP BY estado_envio') as $f) {
                 $porEnvio[$f['estado_envio']] = (int)$f['n'];
             }
-            $porPago = ['Pendiente' => 0, 'Pagado' => 0, 'Rechazado' => 0];
+            $porPago = ['Pendiente' => 0, 'Por_verificar' => 0, 'Pagado' => 0, 'Rechazado' => 0];
             foreach (self::filas("SELECT estado_pago, COUNT(*) AS n FROM pedidos WHERE estado_envio <> 'Cancelado' GROUP BY estado_pago") as $f) {
                 $porPago[$f['estado_pago']] = (int)$f['n'];
             }
@@ -137,15 +137,17 @@ final class ReporteController
                 "SELECT COUNT(*) FROM promociones WHERE activo = 1 AND date('now','localtime') BETWEEN fecha_inicio AND fecha_fin");
         }
 
-        if (tieneModulo($yo, 'distribucion')) {
-            $porEstado = ['En_preparacion' => 0, 'En_camino' => 0, 'Entregado' => 0];
+        if (tieneModulo($yo, 'distribucion') || tieneModulo($yo, 'preparacion')) {
+            $porEstado = ['En_preparacion' => 0, 'Empacado' => 0, 'En_camino' => 0, 'Entregado' => 0, 'Finalizado' => 0];
             foreach (self::filas('SELECT estado, COUNT(*) AS n FROM despachos GROUP BY estado') as $f) {
                 $porEstado[$f['estado']] = (int)$f['n'];
             }
             $activos = self::filas(
                 "SELECT d.id, d.pedido_id, d.codigo_guia, d.estado, p.direccion_envio, p.ciudad, p.telefono, u.nombre AS cliente
                    FROM despachos d JOIN pedidos p ON p.id = d.pedido_id JOIN usuarios u ON u.id = p.usuario_id
-                  WHERE d.estado <> 'Entregado' ORDER BY (d.estado = 'En_camino') DESC, d.id LIMIT 8");
+                  WHERE d.estado IN ('En_preparacion', 'Empacado', 'En_camino')"
+                  . (tieneModulo($yo, 'preparacion') ? '' : " AND d.estado <> 'En_preparacion'")
+                  . " ORDER BY (d.estado = 'En_camino') DESC, d.id LIMIT 8");
             $salida['distribucion'] = [
                 'por_estado' => $porEstado,
                 'activos'    => array_map(function ($a) {

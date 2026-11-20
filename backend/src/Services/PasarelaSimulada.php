@@ -13,7 +13,7 @@
  */
 final class PasarelaSimulada
 {
-    public const METODOS = ['Tarjeta', 'QR', 'Transferencia'];
+    public const METODOS = ['Tarjeta', 'QR', 'Transferencia'];   // métodos que pasan por procesar(); PayPal tiene su propio flujo
 
     private const RECHAZOS = [
         '4000000000000002' => 'La tarjeta fue declinada por el banco emisor.',
@@ -46,9 +46,9 @@ final class PasarelaSimulada
             if (!preg_match('/^\d{3,4}$/', (string)($d['cvv'] ?? ''))) {
                 $e['cvv'] = 'El CVV debe tener 3 o 4 dígitos.';
             }
-        } elseif ($metodo === 'Transferencia') {
+        } else {   // QR y Transferencia: el cliente paga por fuera y declara su N° de operación
             if (!preg_match('/^[A-Za-z0-9\-]{6,30}$/', trim((string)($d['comprobante'] ?? '')))) {
-                $e['comprobante'] = 'Ingresa el número de comprobante (6 a 30 letras o números).';
+                $e['comprobante'] = 'Ingresa el N° de operación o comprobante (6 a 30 letras o números).';
             }
         }
         return $e;

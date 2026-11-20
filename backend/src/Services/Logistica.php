@@ -8,7 +8,8 @@
  */
 final class Logistica
 {
-    private const SIGUIENTE = ['En_preparacion' => 'En_camino', 'En_camino' => 'Entregado'];
+    // El empaque (En_preparacion -> Empacado) y el cierre (Entregado -> Finalizado) tienen sus propios métodos y roles.
+    private const SIGUIENTE = ['Empacado' => 'En_camino', 'En_camino' => 'Entregado'];
 
     /**
      * Despacha un pedido PAGADO. Es idempotente: si ya tiene despacho, lo devuelve sin duplicar.
@@ -102,12 +103,69 @@ final class Logistica
     }
 
     /**
-     * Avanza el despacho: En_preparacion -> En_camino -> Entregado.
-     * Al entregar, los IMEI pasan a 'Entregado'.
+     * Preparación y empaque: En_preparacion -> Empacado.
+     * Lo hace el rol Empaque (o el Admin): confirma que verificó los productos y sus IMEI y cuántos bultos armó.
      */
-    public static function cambiarEstado(int $despachoId, string $nuevo, array $operador): array
+    public static function empacar(int $despachoId, array $operador, int $bultos = 1, string $nota = ''): array
     {
-        return Database::transaccion(function (PDO $pdo) use ($despachoId, $nuevo, $operador) {
+        return Database::transaccion(function (PDO $pdo) use ($despachoId, $operador, $bultos, $nota) {
+            $stmt = $pdo->prepare('SELECT * FROM despachos WHERE id = ?');
+            $stmt->execute([$despachoId]);
+            $d = $stmt->fetch();
+            if (!$d) {
+                throw new ApiException(404, 'no_encontrado', 'El despacho no existe.');
+            }
+            if ($d['estado'] !== 'En_preparacion') {
+                throw new ApiException(422, 'transicion_invalida', 'Solo se pueden empacar pedidos "En preparación" (este está "' . $d['estado'] . '").');
+            }
+            if ($bultos < 1 || $bultos > 20) {
+                throw new ApiException(422, 'validacion', 'Indica cuántos bultos armaste (1 a 20).');
+            }
+            $ahora = date('Y-m-d H:i:s');
+            $pdo->prepare('UPDATE despachos SET estado = ?, empacado_por = ?, empacado_en = ?, bultos = ?, nota_empaque = ? WHERE id = ?')
+                ->execute(['Empacado', (int)$operador['id'], $ahora, $bultos, $nota !== '' ? mb_substr($nota, 0, 200) : null, $despachoId]);
+            $pdo->prepare("UPDATE pedidos SET estado_envio = 'Empacado', actualizado_en = ? WHERE id = ?")->execute([$ahora, $d['pedido_id']]);
+            Notificador::generar((int)$d['pedido_id'], 'empacado');
+            return self::ver($despachoId);
+        });
+    }
+
+    /**
+     * Cierre del proceso: Entregado -> Finalizado.
+     * Lo hace el cliente al confirmar que recibió su pedido (con una calificación opcional)
+     * o, si no responde, el personal de ventas.
+     */
+    public static function finalizar(int $despachoId, array $operador, ?int $calificacion = null, string $comentario = ''): array
+    {
+        return Database::transaccion(function (PDO $pdo) use ($despachoId, $operador, $calificacion, $comentario) {
+            $stmt = $pdo->prepare('SELECT * FROM despachos WHERE id = ?');
+            $stmt->execute([$despachoId]);
+            $d = $stmt->fetch();
+            if (!$d) {
+                throw new ApiException(404, 'no_encontrado', 'El despacho no existe.');
+            }
+            if ($d['estado'] !== 'Entregado') {
+                throw new ApiException(422, 'transicion_invalida', 'Solo se puede cerrar un pedido que ya fue entregado (este está "' . $d['estado'] . '").');
+            }
+            if ($calificacion !== null && ($calificacion < 1 || $calificacion > 5)) {
+                throw new ApiException(422, 'validacion', 'La calificación va de 1 a 5.');
+            }
+            $ahora = date('Y-m-d H:i:s');
+            $pdo->prepare('UPDATE despachos SET estado = ?, finalizado_en = ?, finalizado_por = ?, calificacion = ?, comentario = ? WHERE id = ?')
+                ->execute(['Finalizado', $ahora, (int)$operador['id'], $calificacion, $comentario !== '' ? mb_substr($comentario, 0, 300) : null, $despachoId]);
+            $pdo->prepare("UPDATE pedidos SET estado_envio = 'Finalizado', actualizado_en = ? WHERE id = ?")->execute([$ahora, $d['pedido_id']]);
+            return self::ver($despachoId);
+        });
+    }
+
+    /**
+     * Avanza el despacho: Empacado -> En_camino -> Entregado.
+     * Al entregar, los IMEI pasan a 'Entregado' y se registra quién recibió.
+     * @param array $datos ['receptor' => string, 'nota' => string] (solo al entregar)
+     */
+    public static function cambiarEstado(int $despachoId, string $nuevo, array $operador, array $datos = []): array
+    {
+        return Database::transaccion(function (PDO $pdo) use ($despachoId, $nuevo, $operador, $datos) {
             $stmt = $pdo->prepare('SELECT * FROM despachos WHERE id = ?');
             $stmt->execute([$despachoId]);
             $d = $stmt->fetch();
@@ -129,8 +187,10 @@ final class Logistica
                 $pdo->prepare('UPDATE despachos SET estado = ?, enviado_en = ?, repartidor_id = COALESCE(?, repartidor_id) WHERE id = ?')
                     ->execute([$nuevo, $ahora, $repartidor, $despachoId]);
             } else { // Entregado
-                $pdo->prepare('UPDATE despachos SET estado = ?, entregado_en = ? WHERE id = ?')
-                    ->execute([$nuevo, $ahora, $despachoId]);
+                $receptor = trim((string)($datos['receptor'] ?? ''));
+                $nota = trim((string)($datos['nota'] ?? ''));
+                $pdo->prepare('UPDATE despachos SET estado = ?, entregado_en = ?, receptor = ?, nota_entrega = ? WHERE id = ?')
+                    ->execute([$nuevo, $ahora, $receptor !== '' ? mb_substr($receptor, 0, 80) : null, $nota !== '' ? mb_substr($nota, 0, 200) : null, $despachoId]);
                 $pdo->prepare("UPDATE imeis SET estado = 'Entregado', entregado_en = ? WHERE pedido_id = ? AND estado = 'Vendido'")
                     ->execute([$ahora, $d['pedido_id']]);
             }
@@ -148,12 +208,14 @@ final class Logistica
     {
         $pdo = Database::pdo();
         $stmt = $pdo->prepare(
-            'SELECT d.id, d.pedido_id, d.codigo_guia, d.estado, d.creado_en, d.enviado_en, d.entregado_en,
-                    p.direccion_envio, p.ciudad, p.telefono, p.total, u.nombre AS cliente, r.nombre AS repartidor
+            'SELECT d.id, d.pedido_id, d.codigo_guia, d.estado, d.creado_en, d.empacado_en, d.bultos, d.nota_empaque, d.enviado_en,
+                    d.entregado_en, d.receptor, d.nota_entrega, d.finalizado_en, d.calificacion, d.comentario,
+                    p.direccion_envio, p.ciudad, p.telefono, p.total, u.nombre AS cliente, r.nombre AS repartidor, e.nombre AS empacador
                FROM despachos d
                JOIN pedidos p ON p.id = d.pedido_id
                JOIN usuarios u ON u.id = p.usuario_id
                LEFT JOIN usuarios r ON r.id = d.repartidor_id
+               LEFT JOIN usuarios e ON e.id = d.empacado_por
               WHERE d.id = ?'
         );
         $stmt->execute([$id]);
@@ -161,6 +223,8 @@ final class Logistica
         $d['id'] = (int)$d['id'];
         $d['pedido_id'] = (int)$d['pedido_id'];
         $d['total'] = (float)$d['total'];
+        $d['bultos'] = (int)$d['bultos'];
+        $d['calificacion'] = $d['calificacion'] !== null ? (int)$d['calificacion'] : null;
 
         $stmt = $pdo->prepare(
             'SELECT pr.marca, pr.modelo, dp.imei_asignado AS imei, dp.cantidad

@@ -70,7 +70,8 @@ SC.views.Dashboard = {
             <span class="kpi-var neutro">de {{ usuarios.total }} registrados</span>
           </div>
           <template v-if="r.distribucion && !r.ventas">
-            <router-link to="/despachos" class="kpi kpi-enlace"><span class="kpi-etq">Por preparar</span><strong class="kpi-num ambar">{{ r.distribucion.por_estado.En_preparacion }}</strong><span class="kpi-var neutro">listos para salir</span></router-link>
+            <router-link :to="puedeEmpacar ? '/preparacion' : '/despachos'" class="kpi kpi-enlace"><span class="kpi-etq">Por preparar</span><strong class="kpi-num ambar">{{ r.distribucion.por_estado.En_preparacion }}</strong><span class="kpi-var neutro">pagados, sin empacar</span></router-link>
+            <router-link to="/despachos" class="kpi kpi-enlace"><span class="kpi-etq">Empacados</span><strong class="kpi-num">{{ r.distribucion.por_estado.Empacado }}</strong><span class="kpi-var neutro">listos para salir</span></router-link>
             <router-link to="/despachos" class="kpi kpi-enlace"><span class="kpi-etq">En camino</span><strong class="kpi-num">{{ r.distribucion.por_estado.En_camino }}</strong><span class="kpi-var neutro">en ruta ahora</span></router-link>
             <div class="kpi"><span class="kpi-etq">Entregados</span><strong class="kpi-num verde">{{ r.distribucion.por_estado.Entregado }}</strong><span class="kpi-var neutro">en total</span></div>
           </template>
@@ -122,8 +123,8 @@ SC.views.Dashboard = {
         <!-- ================= Repartidor / distribución ================= -->
         <section v-if="r.distribucion" class="tarjeta">
           <div class="bloque-cabecera">
-            <h2>{{ r.ventas ? 'Entregas pendientes' : 'Mis entregas' }}</h2>
-            <router-link to="/despachos" class="btn btn-secundario btn-sm">Ver todos los despachos</router-link>
+            <h2>{{ r.ventas ? 'Entregas pendientes' : (puedeEmpacar && !puedeEntregar ? 'Pedidos por preparar' : 'Mis entregas') }}</h2>
+            <router-link :to="puedeEmpacar && !puedeEntregar ? '/preparacion' : '/despachos'" class="btn btn-secundario btn-sm">{{ puedeEmpacar && !puedeEntregar ? 'Ir a preparación y empaque' : 'Ver todos los despachos' }}</router-link>
           </div>
           <p v-if="!r.distribucion.activos.length" class="sub">No hay entregas pendientes. ¡Buen trabajo!</p>
           <ul class="entregas">
@@ -133,10 +134,13 @@ SC.views.Dashboard = {
                 <p class="sub">{{ d.cliente }} · {{ d.direccion_envio }}, {{ d.ciudad }}</p>
                 <small>Tel. {{ d.telefono }}</small>
               </div>
-              <div v-if="puedeEntregar" class="acciones">
+              <div v-if="d.estado === 'En_preparacion' && puedeEmpacar" class="acciones">
+                <router-link to="/preparacion" class="btn btn-primario btn-sm">Preparar</router-link>
+              </div>
+              <div v-else-if="d.estado !== 'En_preparacion' && puedeEntregar" class="acciones">
                 <a class="btn btn-secundario btn-sm" :href="'tel:' + d.telefono"><sc-icono nombre="usuario" :tam="14"/> Llamar</a>
                 <button class="btn btn-primario btn-sm" :disabled="avanzando === d.id" @click="avanzar(d)">
-                  {{ d.estado === 'En_preparacion' ? 'Salir a entregar' : 'Marcar entregado' }}
+                  {{ d.estado === 'Empacado' ? 'Salir a entregar' : 'Marcar entregado' }}
                 </button>
               </div>
             </li>
@@ -200,6 +204,7 @@ SC.views.Dashboard = {
         puedeInformes() { return !!SC.store.nivel('informes'); },
         puedeVentas() { return !!SC.store.nivel('ventas'); },
         puedeEntregar() { return SC.store.puedeEscribir('distribucion'); },
+        puedeEmpacar() { return SC.store.puedeEscribir('preparacion'); },
         saludo() {
             const h = new Date().getHours();
             return h < 12 ? 'Buenos días' : (h < 19 ? 'Buenas tardes' : 'Buenas noches');
@@ -216,11 +221,11 @@ SC.views.Dashboard = {
         top() { return this.r.ventas ? this.r.ventas.top_productos.map(t => ({ etiqueta: t.marca + ' ' + t.modelo, valor: t.ingresos, id: t.id })) : []; },
         estadosEnvio() {
             const e = this.r.ventas ? this.r.ventas.por_estado_envio : {};
-            return ['Pendiente', 'En_preparacion', 'En_camino', 'Entregado', 'Cancelado'].map(c => ({ clave: c, n: e[c] || 0 }));
+            return ['Pendiente', 'En_preparacion', 'Empacado', 'En_camino', 'Entregado', 'Finalizado', 'Cancelado'].map(c => ({ clave: c, n: e[c] || 0 }));
         },
         estadosPago() {
             const e = this.r.ventas ? this.r.ventas.por_estado_pago : {};
-            return ['Pagado', 'Pendiente', 'Rechazado'].map(c => ({ clave: c, n: e[c] || 0 }));
+            return ['Pagado', 'Por_verificar', 'Pendiente', 'Rechazado'].map(c => ({ clave: c, n: e[c] || 0 }));
         },
         varIngresos() { return this.r.ventas ? SC.util.variacion(this.r.ventas.ingresos, this.r.ventas.ingresos_anterior) : null; },
         varPedidos() { return this.r.ventas ? SC.util.variacion(this.r.ventas.pedidos, this.r.ventas.pedidos_anterior) : null; }
@@ -276,8 +281,8 @@ SC.views.Dashboard = {
         async avanzar(d) {
             this.avanzando = d.id;
             try {
-                await SC.api.patch('/logistica/despachos/' + d.id + '/estado', { estado: d.estado === 'En_preparacion' ? 'En_camino' : 'Entregado' });
-                SC.store.ok(d.estado === 'En_preparacion' ? 'Ruta iniciada.' : 'Entrega registrada. El cliente recibirá su mensaje.');
+                await SC.api.patch('/logistica/despachos/' + d.id + '/estado', { estado: d.estado === 'Empacado' ? 'En_camino' : 'Entregado' });
+                SC.store.ok(d.estado === 'Empacado' ? 'Ruta iniciada.' : 'Entrega registrada. El cliente recibirá su mensaje.');
                 await this.cargar();
             } catch (e) { SC.store.error(e.mensaje); }
             finally { this.avanzando = 0; }

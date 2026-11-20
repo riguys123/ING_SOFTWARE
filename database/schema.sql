@@ -27,7 +27,7 @@ CREATE TABLE roles (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre      TEXT NOT NULL UNIQUE,
     descripcion TEXT,
-    area        TEXT NOT NULL      -- seguridad | inventario | distribucion | ventas | cobranzas | clientes
+    area        TEXT NOT NULL      -- seguridad | ventas | preparacion | distribucion | clientes
 );
 
 CREATE TABLE usuarios (
@@ -140,9 +140,9 @@ CREATE TABLE pedidos (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     usuario_id     INTEGER NOT NULL REFERENCES usuarios(id),
     total          REAL NOT NULL CHECK (total >= 0),
-    estado_pago    TEXT NOT NULL DEFAULT 'Pendiente' CHECK (estado_pago IN ('Pendiente', 'Pagado', 'Rechazado')),
+    estado_pago    TEXT NOT NULL DEFAULT 'Pendiente' CHECK (estado_pago IN ('Pendiente', 'Por_verificar', 'Pagado', 'Rechazado')),
     estado_envio   TEXT NOT NULL DEFAULT 'Pendiente'
-                   CHECK (estado_envio IN ('Pendiente', 'En_preparacion', 'En_camino', 'Entregado', 'Cancelado')),
+                   CHECK (estado_envio IN ('Pendiente', 'En_preparacion', 'Empacado', 'En_camino', 'Entregado', 'Finalizado', 'Cancelado')),
     direccion_envio TEXT NOT NULL,
     ciudad         TEXT NOT NULL,
     telefono       TEXT NOT NULL,
@@ -168,12 +168,16 @@ CREATE TABLE detalle_pedido (
 CREATE TABLE pagos (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     pedido_id       INTEGER NOT NULL REFERENCES pedidos(id),
-    metodo          TEXT NOT NULL CHECK (metodo IN ('Tarjeta', 'QR', 'Transferencia')),
+    metodo          TEXT NOT NULL CHECK (metodo IN ('Tarjeta', 'QR', 'Transferencia', 'PayPal')),
     monto           REAL NOT NULL,
-    estado          TEXT NOT NULL CHECK (estado IN ('Aprobado', 'Rechazado')),
+    estado          TEXT NOT NULL CHECK (estado IN ('Aprobado', 'Rechazado', 'Por_verificar')),
     referencia      TEXT NOT NULL,                           -- id de transacción de la pasarela
     tarjeta_ultimos4 TEXT,
     motivo_rechazo  TEXT,
+    comprobante_ref TEXT,                                    -- QR / transferencia: N° de operación que escribe el cliente
+    comprobante_img TEXT,                                    -- QR / transferencia: foto o captura del comprobante (opcional)
+    verificado_por  INTEGER REFERENCES usuarios(id),         -- quién confirmó o rechazó el cobro
+    verificado_en   TEXT,
     fecha           TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -182,11 +186,22 @@ CREATE TABLE despachos (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     pedido_id     INTEGER NOT NULL UNIQUE REFERENCES pedidos(id),
     codigo_guia   TEXT NOT NULL UNIQUE,
-    estado        TEXT NOT NULL DEFAULT 'En_preparacion' CHECK (estado IN ('En_preparacion', 'En_camino', 'Entregado')),
+    -- En_preparacion -> Empacado (rol Empaque) -> En_camino -> Entregado (Repartidor) -> Finalizado (confirma el cliente)
+    estado        TEXT NOT NULL DEFAULT 'En_preparacion' CHECK (estado IN ('En_preparacion', 'Empacado', 'En_camino', 'Entregado', 'Finalizado')),
     repartidor_id INTEGER REFERENCES usuarios(id),
     creado_en     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    empacado_por  INTEGER REFERENCES usuarios(id),          -- quién preparó y empacó el pedido
+    empacado_en   TEXT,
+    bultos        INTEGER NOT NULL DEFAULT 1 CHECK (bultos >= 1),
+    nota_empaque  TEXT,
     enviado_en    TEXT,
-    entregado_en  TEXT
+    entregado_en  TEXT,
+    receptor      TEXT,                                      -- quién recibió el pedido (lo registra el repartidor)
+    nota_entrega  TEXT,
+    finalizado_en TEXT,
+    finalizado_por INTEGER REFERENCES usuarios(id),          -- el cliente (o el personal) que cerró el pedido
+    calificacion  INTEGER CHECK (calificacion BETWEEN 1 AND 5),
+    comentario    TEXT
 );
 
 CREATE INDEX idx_productos_marca  ON productos(marca);
@@ -224,7 +239,7 @@ CREATE TABLE notificaciones (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     pedido_id   INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
     usuario_id  INTEGER NOT NULL REFERENCES usuarios(id),
-    tipo        TEXT NOT NULL CHECK (tipo IN ('confirmacion', 'comprobante', 'envio', 'entrega')),
+    tipo        TEXT NOT NULL CHECK (tipo IN ('confirmacion', 'comprobante', 'empacado', 'envio', 'entrega')),
     telefono    TEXT NOT NULL,
     mensaje     TEXT NOT NULL,
     estado      TEXT NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Enviado')),
@@ -237,3 +252,6 @@ CREATE INDEX idx_productos_cat   ON productos(categoria_id);
 CREATE INDEX idx_promos_vigencia ON promociones(activo, fecha_inicio, fecha_fin);
 CREATE INDEX idx_notif_estado    ON notificaciones(estado, creado_en);
 CREATE INDEX idx_notif_pedido    ON notificaciones(pedido_id);
+
+-- Versión del esquema (ver SCHEMA_VERSION en backend/src/config.php)
+PRAGMA user_version = 10;

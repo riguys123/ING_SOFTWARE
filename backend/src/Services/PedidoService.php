@@ -138,9 +138,10 @@ final class PedidoService
         $p['pagos'] = $stmt->fetchAll();
 
         $stmt = $pdo->prepare(
-            'SELECT d.id, d.codigo_guia, d.estado, d.creado_en, d.enviado_en, d.entregado_en,
-                    r.nombre AS repartidor
-               FROM despachos d LEFT JOIN usuarios r ON r.id = d.repartidor_id WHERE d.pedido_id = ?'
+            'SELECT d.id, d.codigo_guia, d.estado, d.creado_en, d.empacado_en, d.bultos, d.enviado_en, d.entregado_en,
+                    d.receptor, d.finalizado_en, d.calificacion, d.comentario, r.nombre AS repartidor, e.nombre AS empacador
+               FROM despachos d LEFT JOIN usuarios r ON r.id = d.repartidor_id LEFT JOIN usuarios e ON e.id = d.empacado_por
+              WHERE d.pedido_id = ?'
         );
         $stmt->execute([$id]);
         $p['despacho'] = $stmt->fetch() ?: null;
@@ -160,6 +161,10 @@ final class PedidoService
             if ($p['estado_pago'] === 'Pagado') {
                 throw new ApiException(409, 'pedido_pagado',
                     'Un pedido ya pagado no se puede cancelar desde aquí (requiere reembolso).');
+            }
+            if ($p['estado_pago'] === 'Por_verificar') {
+                throw new ApiException(409, 'pago_en_verificacion',
+                    'El pedido tiene un comprobante en verificación; espera la respuesta de Cobranzas.');
             }
             if ($p['estado_envio'] === 'Cancelado') {
                 throw new ApiException(409, 'ya_cancelado', 'El pedido ya estaba cancelado.');

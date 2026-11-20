@@ -259,13 +259,13 @@ final class InformeController
             $f['id'] = Comprobante::numero((int)$f['id']);
         }
         unset($f);
-        $nombres = ['Pendiente' => 'Sin despachar', 'En_preparacion' => 'En preparación', 'En_camino' => 'En camino', 'Entregado' => 'Entregado', 'Cancelado' => 'Cancelado'];
+        $nombres = ['Pendiente' => 'Sin despachar', 'En_preparacion' => 'En preparación', 'Empacado' => 'Empacado', 'En_camino' => 'En camino', 'Entregado' => 'Entregado', 'Finalizado' => 'Finalizado', 'Cancelado' => 'Cancelado'];
         return [
             'titulo' => 'Informe de pedidos',
             'kpis' => [
                 ['etiqueta' => 'Pedidos', 'valor' => count($filas), 'tipo' => 'numero'],
                 ['etiqueta' => 'Pagados', 'valor' => $pagados, 'tipo' => 'numero'],
-                ['etiqueta' => 'Entregados', 'valor' => $envio['Entregado'] ?? 0, 'tipo' => 'numero'],
+                ['etiqueta' => 'Entregados', 'valor' => ($envio['Entregado'] ?? 0) + ($envio['Finalizado'] ?? 0), 'tipo' => 'numero'],
                 ['etiqueta' => 'Monto pagado', 'valor' => round($monto, 2), 'tipo' => 'dinero'],
             ],
             'graficos' => [['titulo' => 'Pedidos por estado de envío', 'tipo' => 'dona',

@@ -45,12 +45,12 @@ final class PedidoController
             $params[':uid'] = (int)$yo['id'];
         }
         $ep = Request::query('estado_pago');
-        if (in_array($ep, ['Pendiente', 'Pagado', 'Rechazado'], true)) {
+        if (in_array($ep, ['Pendiente', 'Por_verificar', 'Pagado', 'Rechazado'], true)) {
             $where .= ' AND p.estado_pago = :ep';
             $params[':ep'] = $ep;
         }
         $ee = Request::query('estado_envio');
-        if (in_array($ee, ['Pendiente', 'En_preparacion', 'En_camino', 'Entregado', 'Cancelado'], true)) {
+        if (in_array($ee, ['Pendiente', 'En_preparacion', 'Empacado', 'En_camino', 'Entregado', 'Finalizado', 'Cancelado'], true)) {
             $where .= ' AND p.estado_envio = :ee';
             $params[':ee'] = $ee;
         }
@@ -135,6 +135,25 @@ final class PedidoController
         $c = Comprobante::datos($p['id']);
         $c['texto_whatsapp'] = Comprobante::texto($c);
         Response::ok($c);
+    }
+
+    /**
+     * POST /api/pedidos/:id/recepcion  { calificacion?: 1-5, comentario? }
+     * El cliente confirma que recibió su pedido: cierra el proceso (estado "Finalizado").
+     */
+    public static function confirmarRecepcion(array $yo, array $p): void
+    {
+        if ($yo['rol'] !== ROL_CLIENTE) {
+            Response::error(403, 'acceso_denegado', 'Solo el cliente confirma la recepción de su pedido.');
+        }
+        $pedido = self::cargarAutorizado($yo, $p['id']);   // verifica que el pedido sea suyo
+        if (empty($pedido['despacho'])) {
+            Response::error(409, 'sin_despacho', 'Tu pedido todavía no fue despachado.');
+        }
+        $d = Request::json();
+        $nota = filter_var($d['calificacion'] ?? null, FILTER_VALIDATE_INT);
+        Logistica::finalizar((int)$pedido['despacho']['id'], $yo, $nota === false ? null : $nota, trim((string)($d['comentario'] ?? '')));
+        Response::ok(PedidoService::obtener($p['id']));
     }
 
     /** PATCH /api/pedidos/:id/cancelar — solo pedidos sin pagar */

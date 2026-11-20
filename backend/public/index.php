@@ -12,7 +12,7 @@ require __DIR__ . '/../src/Database.php';
 require __DIR__ . '/../src/Auth.php';
 require __DIR__ . '/../src/Router.php';
 require __DIR__ . '/../src/Jwt.php';
-foreach (['Imei', 'PasarelaSimulada', 'Catalogo', 'Uploads', 'PedidoService', 'Comprobante', 'Notificador', 'Logistica', 'PagoService'] as $s) {
+foreach (['Imei', 'PasarelaSimulada', 'Catalogo', 'Uploads', 'PedidoService', 'Comprobante', 'Notificador', 'Logistica', 'PayPalService', 'PagoService'] as $s) {
     require __DIR__ . "/../src/Services/{$s}.php";
 }
 foreach (['Auth', 'Usuario', 'Rol', 'Log', 'Producto', 'Inventario', 'Carrito', 'Pedido', 'Pago', 'Logistica', 'Reporte', 'Categoria', 'Promocion', 'Notificacion', 'Informe'] as $c) {
@@ -123,6 +123,7 @@ $router->add('GET',   '/pedidos',               [PedidoController::class, 'lista
 $router->add('GET',   '/pedidos/:id',           [PedidoController::class, 'ver']);
 $router->add('GET',   '/pedidos/:id/comprobante', [PedidoController::class, 'comprobante']);
 $router->add('PATCH', '/pedidos/:id/cancelar',  [PedidoController::class, 'cancelar']);
+$router->add('POST',  '/pedidos/:id/recepcion', [PedidoController::class, 'confirmarRecepcion'], 'modulo:tienda');
 
 // ---- Mensajes automáticos (WhatsApp local) ----
 $router->add('GET',   '/notificaciones',             [NotificacionController::class, 'listar'],       'modulo:ventas');
@@ -130,11 +131,21 @@ $router->add('PATCH', '/notificaciones/:id/enviado', [NotificacionController::cl
 
 // ---- Pagos ----
 $router->add('POST', '/pagos/procesar', [PagoController::class, 'procesar'], 'modulo:tienda');
+$router->add('GET',  '/pagos/config',          [PagoController::class, 'configuracion'], 'modulo:tienda');
+$router->add('POST', '/pagos/paypal/crear',    [PagoController::class, 'paypalCrear'],    'modulo:tienda');
+$router->add('POST', '/pagos/paypal/simular',  [PagoController::class, 'paypalSimular'],  'modulo:tienda');
+$router->add('POST', '/pagos/paypal/capturar', [PagoController::class, 'paypalCapturar'], 'modulo:tienda');
+$router->add('POST', '/pagos/comprobante', [PagoController::class, 'subirComprobante'], 'modulo:tienda');
 $router->add('GET',  '/pagos',          [PagoController::class, 'listar'],   'modulo:cobranzas');
+$router->add('POST', '/pagos/:id/confirmar', [PagoController::class, 'confirmar'], 'modulo:cobranzas:total');
+$router->add('POST', '/pagos/:id/rechazar',  [PagoController::class, 'rechazar'],  'modulo:cobranzas:total');
 
 // ---- Logística ----
 $router->add('POST',  '/logistica/despacho',            [LogisticaController::class, 'despachar'],    'modulo:inventario:total');
 $router->add('GET',   '/logistica/despachos',           [LogisticaController::class, 'listar'],       'modulo:distribucion');
+$router->add('GET',   '/preparacion/despachos',         [LogisticaController::class, 'listar'],       'modulo:preparacion');
+$router->add('PATCH', '/logistica/despachos/:id/empacar',  [LogisticaController::class, 'empacar'],   'modulo:preparacion:total');
+$router->add('POST',  '/logistica/despachos/:id/finalizar', [LogisticaController::class, 'finalizar'], 'modulo:ventas:total');
 $router->add('PATCH', '/logistica/despachos/:id/estado', [LogisticaController::class, 'cambiarEstado'], 'modulo:distribucion:total');
 
 // ---- Panel administrativo ----

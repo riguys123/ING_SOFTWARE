@@ -45,6 +45,7 @@ $roles = [
     ['Vendedor',   'Encargado: ventas, catálogo, promociones, inventario y atención a clientes.',        'ventas'],
     ['Repartidor', 'Encargado del envío: recoge los pedidos y registra las entregas.',                    'distribucion'],
     ['Cliente',    'Comprador final de la tienda en línea.',                                             'clientes'],
+    ['Empaque',    'Prepara y empaca los pedidos pagados: verifica productos e IMEI y arma los bultos.', 'preparacion'],
 ];
 $stmt = $pdo->prepare('INSERT INTO roles (nombre, descripcion, area) VALUES (?, ?, ?)');
 foreach ($roles as $r) { $stmt->execute($r); }
@@ -66,8 +67,9 @@ $modulos = [
     ['inventario',          'Inventario',           'Stock por IMEI (teléfonos) o por cantidad (accesorios).', 'Operación', 9],
     ['ventas',              'Pedidos y mensajes',   'Pedidos de clientes y mensajes automáticos de WhatsApp.', 'Operación', 10],
     ['cobranzas',           'Pagos',                'Transacciones y cobros de la pasarela.',               'Operación',  11],
-    ['distribucion',        'Despachos',            'Órdenes de despacho y seguimiento de entregas.',       'Operación',  12],
-    ['informes',            'Informes',             'Ventas, productos, inventario, pedidos y clientes.',   'Operación',  13],
+    ['preparacion',         'Preparación y empaque', 'Verificación de productos e IMEI, armado de bultos y empaque de pedidos pagados.', 'Operación', 12],
+    ['distribucion',        'Despachos',            'Entrega: salida a ruta, registro de entrega y cierre del pedido.', 'Operación', 13],
+    ['informes',            'Informes',             'Ventas, productos, inventario, pedidos y clientes.',   'Operación',  14],
 ];
 $stmt = $pdo->prepare('INSERT INTO modulos (clave, nombre, descripcion, grupo, orden) VALUES (?, ?, ?, ?, ?)');
 foreach ($modulos as $m) { $stmt->execute($m); }
@@ -79,9 +81,10 @@ unset($admin['tienda']);               // el Admin no compra: la tienda es del C
 $matriz = [
     'Admin'      => $admin,
     'Vendedor'   => $basicos + ['catalogo' => 'total', 'promociones' => 'total', 'inventario' => 'total',
-                                'ventas' => 'total', 'cobranzas' => 'lectura', 'distribucion' => 'lectura', 'informes' => 'lectura'],
+                                'ventas' => 'total', 'cobranzas' => 'total', 'preparacion' => 'lectura', 'distribucion' => 'lectura', 'informes' => 'lectura'],
     'Repartidor' => $basicos + ['distribucion' => 'total'],
     'Cliente'    => $basicos + ['tienda' => 'total'],
+    'Empaque'    => $basicos + ['preparacion' => 'total'],
 ];
 $stmt = $pdo->prepare('INSERT INTO permisos_rol (rol_id, modulo_clave, nivel) VALUES (?, ?, ?)');
 foreach ($matriz as $rol => $permisos) {
@@ -97,6 +100,7 @@ $usuarios = [
     ['Marcos Flores',           'repartidor@smartcell.com', 'Repartidor', $claveDemo],
     ['Cliente Demo',            'cliente@smartcell.com',    'Cliente',    $claveDemo],
     ['Lucía Arce',              'lucia@smartcell.com',      'Cliente',    $claveDemo],
+    ['Rosa Mamani',             'empaque@smartcell.com',    'Empaque',    $claveDemo],
 ];
 $stmt = $pdo->prepare('INSERT INTO usuarios (nombre, email, password, rol_id) VALUES (?, ?, ?, ?)');
 foreach ($usuarios as [$nombre, $email, $rol, $clave]) {
@@ -141,7 +145,16 @@ $telefonos = [
     ['Motorola','Moto G84 5G',    'Snapdragon 695',         8, 256, '50 MP + 8 MP',         '6.55" pOLED 120 Hz',      5000, 'Azul marino', 2100, 7, 3, 'Pantalla pOLED, Android casi puro y 5G.', '#1d4ed8'],
     ['Honor',   'X7b',            'Snapdragon 680',         8, 128, '108 MP + 5 MP + 2 MP', '6.8" LCD 90 Hz',          6000, 'Verde',       1700, 6, 3, 'Batería de 6000 mAh y pantalla grande.', '#15803d'],
     ['Tecno',   'Spark 20 Pro',   'MediaTek Helio G99',     8, 256, '108 MP + QVGA',        '6.78" IPS 120 Hz',        5000, 'Gris lunar',  1300, 9, 3, 'Mucho almacenamiento y pantalla fluida a bajo costo.', '#64748b'],
-    ['Google',  'Pixel 8',        'Google Tensor G3',       8, 128, '50 MP + 12 MP',        '6.2" OLED 120 Hz',        4575, 'Obsidiana',   5800, 0, 2, 'La mejor cámara computacional de Android. (Agotado: ejemplo de producto sin stock)', '#0f172a'],
+    ['Google',  'Pixel 8',        'Google Tensor G3',       8, 128, '50 MP + 12 MP',        '6.2" OLED 120 Hz',        4575, 'Obsidiana',   5800, 4, 2, 'La mejor cámara computacional de Android.', '#0f172a'],
+    ['Apple',   'iPhone 15 Pro',  'A17 Pro',                8, 256, '48 MP + 12 MP + 12 MP','6.1" Super Retina XDR ProMotion', 3274, 'Titanio negro', 9800, 3, 2, 'Cuerpo de titanio, chip A17 Pro y cámara de 48 MP con zoom óptico.', '#1f2937'],
+];
+// Fotos reales de la presentación (recortadas, en frontend/assets/img/telefonos/): marca + modelo => archivo
+$fotosReales = [
+    'Apple iPhone 15 Pro'  => 'assets/img/telefonos/iphone-15-pro.png',
+    'Google Pixel 8'       => 'assets/img/telefonos/pixel-8.png',
+    'Tecno Spark 20 Pro'   => 'assets/img/telefonos/tecno-spark-20-pro.png',
+    'Honor X7b'            => 'assets/img/telefonos/honor-x7b.png',
+    'Motorola Moto G84 5G' => 'assets/img/telefonos/moto-g84.png',
 ];
 $insP = $pdo->prepare('INSERT INTO productos (categoria_id, requiere_imei, marca, modelo, procesador, ram_gb, almacenamiento_gb, camara, pantalla, bateria_mah, color, precio, stock_actual, stock_minimo, descripcion, fotos)
                        VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)');
@@ -150,6 +163,7 @@ $idProd = [];
 foreach ($telefonos as [$marca, $modelo, $cpu, $ram, $rom, $cam, $pant, $bat, $color, $precio, $unidades, $min, $desc, $hex]) {
     $n = count($idProd) + 1;
     $fotos = ["uploads/productos/seed-tel-$n-frente.svg", "uploads/productos/seed-tel-$n-atras.svg"];
+    if (isset($fotosReales["$marca $modelo"])) { $fotos = [$fotosReales["$marca $modelo"]]; }
     file_put_contents(SEED_CARPETA . 'productos/seed-tel-' . $n . '-frente.svg', svg_telefono($hex, $marca, $modelo, true));
     file_put_contents(SEED_CARPETA . 'productos/seed-tel-' . $n . '-atras.svg', svg_telefono($hex, $marca, $modelo, false));
     $insP->execute([$idCat['Teléfonos'], $marca, $modelo, $cpu, $ram, $rom, $cam, $pant, $bat, $color, $precio, $min, $desc, json_encode($fotos)]);
@@ -193,6 +207,9 @@ $cliente = $idUsr['cliente@smartcell.com'];
 $vendedor = $idUsr['vendedor@smartcell.com'];
 $lucia   = $idUsr['lucia@smartcell.com'];
 $repart  = usuarioPorId($idUsr['repartidor@smartcell.com']);
+$empaque = usuarioPorId($idUsr['empaque@smartcell.com']);
+$clienteU = usuarioPorId($idUsr['cliente@smartcell.com']);
+$luciaU   = usuarioPorId($idUsr['lucia@smartcell.com']);
 $vence   = date('m/y', strtotime('+2 years'));
 $tarjeta = ['numero' => '4242 4242 4242 4242', 'titular' => 'CLIENTE DEMO', 'vencimiento' => $vence, 'cvv' => '123'];
 
@@ -210,23 +227,53 @@ $atrasar = function (int $pedidoId, int $dias) use ($pdo) {
     $pdo->prepare("UPDATE notificaciones SET creado_en = datetime('now','localtime',?) WHERE pedido_id = ?")->execute([$mod, $pedidoId]);
 };
 
-// 1) Pedido entregado (3 equipos, tarjeta)
+// QR y transferencia quedan "por verificar" hasta que Cobranzas confirma: aquí el vendedor ya los confirmó
+$cobrar = function (int $id, int $uid, string $metodo, array $datos) use ($vendedor) {
+    if ($metodo !== 'Tarjeta' && empty($datos['comprobante'])) {
+        $datos['comprobante'] = 'OP-' . (700000 + $id * 37);
+    }
+    $r = PagoService::procesar($id, $uid, $metodo, $datos);
+    return $r['pendiente'] ? PagoService::confirmar($r['pago']['id'], $vendedor) : $r;
+};
+
+// Flujo completo de un despacho: empaque (rol Empaque) -> ruta y entrega (Repartidor) -> cierre (cliente)
+$flujo = function (int $despachoId, string $hasta, ?array $cliente = null, ?int $nota = null) use ($empaque, $repart) {
+    Logistica::empacar($despachoId, $empaque, 1);
+    if ($hasta === 'Empacado') { return; }
+    Logistica::cambiarEstado($despachoId, 'En_camino', $repart);
+    if ($hasta === 'En_camino') { return; }
+    Logistica::cambiarEstado($despachoId, 'Entregado', $repart, ['receptor' => $cliente ? $cliente['nombre'] : 'Cliente']);
+    if ($hasta === 'Finalizado' && $cliente) { Logistica::finalizar($despachoId, $cliente, $nota, $nota ? 'Todo llegó perfecto, gracias.' : ''); }
+};
+
+// 1) Pedido entregado y cerrado por el cliente (3 equipos, tarjeta)
 $p1 = $pedir($cliente, ['Samsung Galaxy A15' => 2, 'Xiaomi Redmi Note 13' => 1], 'Calle Calvo 123, Zona Central', 'Sucre');
-$r = PagoService::procesar($p1, $cliente, 'Tarjeta', $tarjeta);
-Logistica::cambiarEstado($r['despacho']['id'], 'En_camino', $repart);
-Logistica::cambiarEstado($r['despacho']['id'], 'Entregado', $repart);
+$r = $cobrar($p1, $cliente, 'Tarjeta', $tarjeta);
+$flujo($r['despacho']['id'], 'Finalizado', $clienteU, 5);
 $atrasar($p1, 5);
 
 // 2) Pedido en camino (QR)
 $p2 = $pedir($lucia, ['Apple iPhone 15' => 1], 'Av. Hernando Siles 456', 'Sucre');
-$r = PagoService::procesar($p2, $lucia, 'QR', []);
-Logistica::cambiarEstado($r['despacho']['id'], 'En_camino', $repart);
+$r = $cobrar($p2, $lucia, 'QR', []);
+$flujo($r['despacho']['id'], 'En_camino');
 $atrasar($p2, 2);
 
 // 3) Pedido pagado, en preparación (transferencia)
 $p3 = $pedir($cliente, ['Motorola Moto G84 5G' => 1], 'Calle Bolívar 78', 'Sucre');
-PagoService::procesar($p3, $cliente, 'Transferencia', ['comprobante' => 'TRF-884213']);
+$cobrar($p3, $cliente, 'Transferencia', ['comprobante' => 'TRF-884213']);
 $atrasar($p3, 1);
+
+// 3b) Pedido empacado, esperando al repartidor
+$p3b = $pedir($lucia, ['Samsung Galaxy S24' => 1], 'Av. Ostria Gutiérrez 90', 'Sucre');
+$r = $cobrar($p3b, $lucia, 'QR', []);
+$flujo($r['despacho']['id'], 'Empacado');
+$atrasar($p3b, 1);
+
+// 3c) Pedido entregado, pendiente de que el cliente confirme la recepción
+$p3c = $pedir($cliente, ['JBL Go 3 (parlante Bluetooth)' => 1], 'Calle Calvo 123, Zona Central', 'Sucre');
+$r = $cobrar($p3c, $cliente, 'Tarjeta', $tarjeta);
+$flujo($r['despacho']['id'], 'Entregado', $clienteU);
+$atrasar($p3c, 1);
 
 // 4) Pedido pendiente de pago
 $pedir($lucia, ['Tecno Spark 20 Pro' => 1], 'Calle Junín 210', 'Sucre');
@@ -257,9 +304,8 @@ foreach ($historial as [$dias, $uid, $lineas, $metodo]) {
     $k++;
     $id = $pedir($uid, $lineas, 'Calle Junín ' . (100 + $k) . ', Zona Central', 'Sucre');
     $datos = $metodo === 'Tarjeta' ? $tarjeta : ($metodo === 'Transferencia' ? $transf(500000 + $k) : []);
-    $r = PagoService::procesar($id, $uid, $metodo, $datos);
-    Logistica::cambiarEstado($r['despacho']['id'], 'En_camino', $repart);
-    Logistica::cambiarEstado($r['despacho']['id'], 'Entregado', $repart);
+    $r = $cobrar($id, $uid, $metodo, $datos);
+    $flujo($r['despacho']['id'], 'Finalizado', $uid === $cliente ? $clienteU : $luciaU, 4 + ($k % 2));
     $atrasar($id, $dias);
 }
 
@@ -283,7 +329,13 @@ foreach ($promos as $i => [$titulo, $desc, $pct, $prod, $cat, $etq, [$c1, $c2], 
 
 // 6) Pedido con accesorios (sin IMEI) y descuento del 20 %, pagado por QR
 $p6 = $pedir($lucia, ['Samsung Cargador rápido 25 W' => 1, 'SmartCell Funda de silicona iPhone 15' => 2], 'Av. Hernando Siles 456', 'Sucre');
-PagoService::procesar($p6, $lucia, 'QR', []);
+$cobrar($p6, $lucia, 'QR', []);
+
+// 7) Dos cobros por verificar para la demo de Cobranzas: un QR y un depósito (el vendedor los confirma o rechaza)
+$p7 = $pedir($cliente, ['Samsung Cargador rápido 25 W' => 1], 'Calle Bolívar 78', 'Sucre');
+PagoService::procesar($p7, $cliente, 'QR', ['comprobante' => 'QR-20481577']);
+$p8 = $pedir($lucia, ['Motorola Moto G84 5G' => 1], 'Av. Hernando Siles 456', 'Sucre');
+PagoService::procesar($p8, $lucia, 'Transferencia', ['comprobante' => 'DEP-905511']);
 
 // Los mensajes de los primeros pedidos ya "se enviaron"; los últimos quedan pendientes para la demo
 $pdo->prepare("UPDATE notificaciones SET estado = 'Enviado', enviado_en = creado_en, enviado_por = ? WHERE pedido_id NOT IN (?, ?)")
@@ -296,4 +348,4 @@ echo "Base de datos creada: $rutaDb\n";
 echo "Roles: " . count($roles) . " | Módulos: " . count($modulos) . " | Usuarios: " . count($usuarios) . " | Categorías: " . count($categorias) . "\n";
 echo "Productos: $nProductos | IMEI: $totalImei | Pedidos de ejemplo: " . (6 + count($historial)) . " | Promociones: " . count($promos) . " | Mensajes automáticos: $nMensajes\n";
 echo "Admin: admin@smartcell.com / $claveAdmin\n";
-echo "Demás usuarios (vendedor@, repartidor@, cliente@, lucia@smartcell.com): contraseña $claveDemo\n";
+echo "Demás usuarios (vendedor@, repartidor@, empaque@, cliente@, lucia@smartcell.com): contraseña $claveDemo\n";

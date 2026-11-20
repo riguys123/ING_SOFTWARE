@@ -26,9 +26,17 @@ final class LogisticaController
     {
         $where = ' WHERE 1=1';
         $params = [];
-        if (in_array($e = Request::query('estado'), ['En_preparacion', 'En_camino', 'Entregado'], true)) {
+        if (in_array($e = Request::query('estado'), ['En_preparacion', 'Empacado', 'En_camino', 'Entregado', 'Finalizado'], true)) {
             $where .= ' AND d.estado = :estado';
             $params[':estado'] = $e;
+        }
+        // El repartidor solo ve lo que ya está empacado: lo que sigue en preparación es trabajo del área de Empaque
+        if (!tieneModulo($yo, 'preparacion')) {
+            $where .= " AND d.estado <> 'En_preparacion'";
+        }
+        // El empacador solo ve lo que le corresponde: por preparar y ya empacado (no lo que va en camino o entregado)
+        if (($yo['rol'] ?? '') === 'Empaque') {
+            $where .= " AND d.estado IN ('En_preparacion', 'Empacado')";
         }
         if (($q = Request::query('q')) !== '') {
             $where .= " AND (d.codigo_guia LIKE :q ESCAPE '\\' OR u.nombre LIKE :q ESCAPE '\\' OR d.pedido_id = :qid"
@@ -59,10 +67,28 @@ final class LogisticaController
         ]);
     }
 
-    /** PATCH /api/logistica/despachos/:id/estado   { estado: "En_camino" | "Entregado" } */
+    /** PATCH /api/logistica/despachos/:id/estado   { estado: "En_camino" | "Entregado", receptor?, nota? } */
     public static function cambiarEstado(array $yo, array $p): void
     {
-        $estado = (string)(Request::json()['estado'] ?? '');
-        Response::ok(Logistica::cambiarEstado($p['id'], $estado, $yo));
+        $d = Request::json();
+        Response::ok(Logistica::cambiarEstado($p['id'], (string)($d['estado'] ?? ''), $yo,
+            ['receptor' => $d['receptor'] ?? '', 'nota' => $d['nota'] ?? '']));
+    }
+
+    /** PATCH /api/logistica/despachos/:id/empacar   { verificado: true, bultos, nota? } — rol Empaque */
+    public static function empacar(array $yo, array $p): void
+    {
+        $d = Request::json();
+        if (empty($d['verificado'])) {
+            Response::error(422, 'validacion', 'Confirma que verificaste los productos y sus IMEI antes de empacar.');
+        }
+        $bultos = filter_var($d['bultos'] ?? 1, FILTER_VALIDATE_INT);
+        Response::ok(Logistica::empacar($p['id'], $yo, $bultos === false ? 0 : $bultos, trim((string)($d['nota'] ?? ''))));
+    }
+
+    /** POST /api/logistica/despachos/:id/finalizar — cierre manual por ventas (el cliente usa /pedidos/:id/recepcion) */
+    public static function finalizar(array $yo, array $p): void
+    {
+        Response::ok(Logistica::finalizar($p['id'], $yo, null, 'Cerrado por el personal de ventas.'));
     }
 }

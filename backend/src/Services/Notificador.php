@@ -11,7 +11,7 @@
  */
 final class Notificador
 {
-    public const TIPOS = ['confirmacion', 'comprobante', 'envio', 'entrega'];
+    public const TIPOS = ['confirmacion', 'comprobante', 'empacado', 'envio', 'entrega'];
 
     public static function generar(int $pedidoId, string $tipo): void
     {
@@ -32,6 +32,7 @@ final class Notificador
                 . Comprobante::bs($c['total']) . ".\nLo enviaremos a: " . $c['entrega']['direccion'] . ', ' . $c['entrega']['ciudad'] . '.'
                 . ($guia ? "\nGuía de seguimiento: $guia" : ''),
             'comprobante'  => Comprobante::texto($c),
+            'empacado'     => "📦 ¡Hola $nombre! Tu pedido #$pedidoId ya está *preparado y empacado*. En breve sale a tu domicilio." . ($guia ? "\nGuía: $guia" : ''),
             'envio'        => "🚚 ¡Hola $nombre! Tu pedido #$pedidoId ya está *en camino*." . ($guia ? "\nGuía: $guia" : '')
                 . "\nTe llevaremos tu compra a: " . $c['entrega']['direccion'] . '. Ten tu documento a mano para recibirla.',
             'entrega'      => "📦 ¡Hola $nombre! Tu pedido #$pedidoId fue *entregado*. ¡Gracias por comprar en " . TIENDA_NOMBRE

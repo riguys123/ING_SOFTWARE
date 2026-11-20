@@ -116,7 +116,9 @@ SC.views.Checkout = {
 
             <section class="tarjeta">
               <h2>2. Método de pago</h2>
-              <p class="sub">Pasarela de pagos <strong>simulada</strong>: no se cobra dinero real.</p>
+              <p v-if="pago.metodo === 'Tarjeta'" class="sub">Pasarela de pagos <strong>simulada</strong>: no se cobra dinero real.</p>
+              <p v-else-if="pago.metodo === 'PayPal'" class="sub">Serás redirigido a <strong>PayPal</strong> para pagar de forma segura. Se cobra en dólares (USD) al tipo de cambio de la tienda.</p>
+              <p v-else class="sub">El pago se hace por fuera (banco o app) y el vendedor lo <strong>verifica</strong> antes de preparar tu pedido.</p>
               <div class="metodos" role="radiogroup" aria-label="Método de pago">
                 <label v-for="m in metodos" :key="m.clave" class="metodo" :class="{ activo: pago.metodo === m.clave }">
                   <input type="radio" name="metodo" :value="m.clave" v-model="pago.metodo" :disabled="procesando">
@@ -157,28 +159,56 @@ SC.views.Checkout = {
                 </div>
               </div>
 
-              <div v-else-if="pago.metodo === 'QR'" class="pago-qr">
-                <svg viewBox="0 0 25 25" class="qr" role="img" aria-label="Código QR de demostración" shape-rendering="crispEdges">
-                  <rect width="25" height="25" fill="#fff"/>
-                  <rect v-for="(c, k) in qrCeldas" :key="k" :x="c[0]" :y="c[1]" width="1" height="1" fill="#14181f"/>
-                </svg>
-                <p class="sub">QR de demostración. Pulsa <strong>Pagar</strong> para simular que ya escaneaste y pagaste desde tu app bancaria.</p>
+              <div v-else-if="pago.metodo === 'PayPal'" class="pago-manual">
+                <div v-if="paypal.demo" class="mensaje-aviso" role="status">Modo <strong>demostración</strong>: se simula la pantalla de PayPal, no se cobra dinero real.</div>
+                <ol class="pasos-pago">
+                  <li>Pulsa <strong>Pagar con PayPal</strong>: te llevaremos a PayPal para iniciar sesión y aprobar el pago.</li>
+                  <li>Se cobrará aproximadamente <strong>US$ {{ usd }}</strong> ({{ $bs(total) }} a Bs {{ paypal.tipo_cambio }} por dólar).</li>
+                  <li>Al volver, tu pago se confirma automáticamente y el pedido pasa a preparación.</li>
+                </ol>
               </div>
 
-              <div v-else>
-                <div class="datos-banco">
-                  <p class="sub">Transfiere el total a esta cuenta de ejemplo y escribe el comprobante.</p>
-                  <dl class="datos datos-ancho">
-                    <dt>Banco</dt><dd>Banco Demo S.A.</dd>
-                    <dt>Cuenta</dt><dd>10000-123456-7</dd>
-                    <dt>Titular</dt><dd>SmartCell Commerce</dd>
-                  </dl>
-                </div>
-                <div class="campo" :class="{ 'con-error': err.comprobante }">
-                  <label for="comp">N° de comprobante</label>
-                  <input id="comp" type="text" v-model="pago.comprobante" placeholder="TRF-123456" :disabled="procesando">
-                  <span v-if="err.comprobante" class="error-campo">{{ err.comprobante }}</span>
-                </div>
+              <div v-else class="pago-manual">
+                <ol class="pasos-pago">
+                  <li v-if="pago.metodo === 'QR'">
+                    <strong>Escanea el QR</strong> con la app de tu banco y paga <strong>{{ $bs(total) }}</strong>.
+                    <div class="pago-qr">
+                      <img v-if="!qrFalla" :src="cfg.qr" class="qr-img" alt="Código QR de pago de la tienda" @error="qrFalla = true">
+                      <svg v-else viewBox="0 0 25 25" class="qr" role="img" aria-label="Código QR de demostración" shape-rendering="crispEdges">
+                        <rect width="25" height="25" fill="#fff"/>
+                        <rect v-for="(c, k) in qrCeldas" :key="k" :x="c[0]" :y="c[1]" width="1" height="1" fill="#14181f"/>
+                      </svg>
+                      <small v-if="qrFalla" class="sub">QR de demostración: el negocio debe colocar su QR real del banco.</small>
+                    </div>
+                  </li>
+                  <li v-else>
+                    <strong>Transfiere o deposita {{ $bs(total) }}</strong> a esta cuenta:
+                    <dl class="datos datos-ancho">
+                      <dt>Banco</dt><dd>{{ cfg.banco }}</dd>
+                      <dt>Cuenta</dt><dd>{{ cfg.cuenta }}</dd>
+                      <dt>Titular</dt><dd>{{ cfg.titular }}</dd>
+                    </dl>
+                  </li>
+                  <li>En la glosa o concepto escribe: <strong class="glosa">SmartCell - {{ usuario }}</strong></li>
+                  <li>
+                    Escribe el <strong>N° de operación</strong> que te dio el banco y, si puedes, adjunta una foto del comprobante.
+                    <div class="campo" :class="{ 'con-error': err.comprobante }">
+                      <label for="comp">N° de operación o comprobante</label>
+                      <input id="comp" type="text" v-model="pago.comprobante" placeholder="Ej: 20481577" :disabled="procesando">
+                      <span v-if="err.comprobante" class="error-campo">{{ err.comprobante }}</span>
+                    </div>
+                    <div class="campo" :class="{ 'con-error': err.imagen }">
+                      <label>Foto del comprobante (opcional)</label>
+                      <div class="comprobante-subida">
+                        <img v-if="pago.imagen" :src="pago.imagen" class="comprobante-mini" alt="Comprobante adjunto">
+                        <label class="btn btn-secundario btn-sm"><input type="file" accept="image/jpeg,image/png,image/webp" hidden :disabled="procesando || subiendo" @change="subirImagen"><sc-icono nombre="subir" :tam="15"/> {{ subiendo ? 'Subiendo…' : (pago.imagen ? 'Cambiar foto' : 'Adjuntar foto') }}</label>
+                        <button v-if="pago.imagen" type="button" class="enlace" @click="pago.imagen = ''">Quitar</button>
+                      </div>
+                      <span v-if="err.imagen" class="error-campo">{{ err.imagen }}</span>
+                    </div>
+                  </li>
+                  <li>Pulsa <strong>Enviar comprobante</strong>. Tu pedido quedará <em>por verificar</em> y el vendedor lo confirmará apenas vea el pago.</li>
+                </ol>
               </div>
             </section>
           </div>
@@ -191,27 +221,30 @@ SC.views.Checkout = {
               </li>
             </ul>
             <div class="resumen-fila resumen-total"><span>Total a pagar</span><strong>{{ $bs(total) }}</strong></div>
-            <button type="submit" class="btn btn-primario btn-bloque" :disabled="procesando">
-              {{ procesando ? 'Procesando pago…' : 'Pagar ' + $bs(total) }}
+            <button type="submit" class="btn btn-primario btn-bloque" :disabled="procesando || false">
+              {{ procesando ? 'Procesando…' : (pago.metodo === 'Tarjeta' ? 'Pagar ' + $bs(total) : (pago.metodo === 'PayPal' ? 'Pagar con PayPal' : 'Enviar comprobante')) }}
             </button>
-            <p class="sub"><sc-icono nombre="candado" :tam="13"/> Tus datos de tarjeta no se guardan: solo los últimos 4 dígitos.</p>
+            <p v-if="pago.metodo === 'Tarjeta'" class="sub"><sc-icono nombre="candado" :tam="13"/> Tus datos de tarjeta no se guardan: solo los últimos 4 dígitos.</p>
           </aside>
         </form>
       </div>`,
     data() {
         return {
             cargando: true, procesando: false, pedidoId: null, reintento: false,
-            lineas: [], total: 0, err: {}, errorPago: '',
+            lineas: [], total: 0, err: {}, errorPago: '', qrFalla: false, subiendo: false, paypal: { activo: false, demo: true, tipo_cambio: 6.96 }, cfg: (window.SC_CONFIG && SC_CONFIG.PAGO) || {},
             envio: { direccion_envio: '', ciudad: 'Sucre', telefono: '', notas: '' },
-            pago: { metodo: 'Tarjeta', numero: '', titular: '', vencimiento: '', cvv: '', comprobante: '' },
+            pago: { metodo: 'Tarjeta', numero: '', titular: '', vencimiento: '', cvv: '', comprobante: '', imagen: '' },
             metodos: [
                 { clave: 'Tarjeta', texto: 'Tarjeta', icono: 'tarjeta' },
                 { clave: 'QR', texto: 'QR', icono: 'qr' },
-                { clave: 'Transferencia', texto: 'Transferencia', icono: 'banco' }
+                { clave: 'Transferencia', texto: 'Transferencia', icono: 'banco' },
+                { clave: 'PayPal', texto: 'PayPal', icono: 'tarjeta' }
             ]
         };
     },
     computed: {
+        usd() { return (this.total / (this.paypal.tipo_cambio || 6.96)).toFixed(2); },
+        usuario() { return SC.store.user ? SC.store.user.nombre : ''; },
         /** Cuadrícula pseudo-aleatoria fija para dibujar el QR de demostración */
         qrCeldas() {
             const celdas = [];
@@ -239,7 +272,7 @@ SC.views.Checkout = {
             this.pedidoId = Number(id);
             try {
                 const p = (await SC.api.get('/pedidos/' + id)).data;
-                if (p.estado_pago === 'Pagado' || p.estado_envio === 'Cancelado') return this.$router.replace('/mis-pedidos/' + id);
+                if (['Pagado', 'Por_verificar'].includes(p.estado_pago) || p.estado_envio === 'Cancelado') return this.$router.replace('/mis-pedidos/' + id);
                 this.envio = { direccion_envio: p.direccion_envio, ciudad: p.ciudad, telefono: p.telefono, notas: p.notas || '' };
                 this.total = p.total;
                 this.lineas = p.items.map(i => ({ clave: i.id, cantidad: i.cantidad, nombre: i.marca + ' ' + i.modelo, subtotal: i.subtotal }));
@@ -249,6 +282,10 @@ SC.views.Checkout = {
             if (!SC.cart.items.length) return this.$router.replace('/carrito');
             this.instantanea();
         }
+        try {
+            const c = (await SC.api.get('/pagos/config')).data;
+            this.paypal = { activo: !!c.paypal, demo: !!c.demo, tipo_cambio: c.tipo_cambio };
+        } catch (e) { /* sin PayPal */ }
         this.cargando = false;
     },
     methods: {
@@ -287,10 +324,23 @@ SC.views.Checkout = {
                 if (this.pago.titular.trim().length < 3) e.titular = 'Ingresa el nombre del titular.';
                 if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(this.pago.vencimiento)) e.vencimiento = 'Usa el formato MM/AA.';
                 if (!/^\d{3,4}$/.test(this.pago.cvv)) e.cvv = 'El CVV tiene 3 o 4 dígitos.';
-            } else if (this.pago.metodo === 'Transferencia') {
-                if (!/^[A-Za-z0-9\-]{6,30}$/.test(this.pago.comprobante.trim())) e.comprobante = 'Ingresa el comprobante (6 a 30 letras o números).';
+            } else if (this.pago.metodo === 'PayPal') {
+            } else {   // QR y Transferencia
+                if (!/^[A-Za-z0-9\-]{6,30}$/.test(this.pago.comprobante.trim())) e.comprobante = 'Ingresa el N° de operación (6 a 30 letras o números).';
             }
             return e;
+        },
+        /** Sube la foto del comprobante (se reduce antes de enviarla) */
+        async subirImagen(ev) {
+            const archivo = ev.target.files[0]; ev.target.value = '';
+            if (!archivo) return;
+            this.subiendo = true;
+            delete this.err.imagen;
+            try {
+                const blob = await SC.util.reducirImagen(archivo);
+                this.pago.imagen = (await SC.api.subir('/pagos/comprobante', 'imagen', blob)).data.ruta;
+            } catch (e) { this.err = { ...this.err, imagen: e.mensaje || e.message }; }
+            finally { this.subiendo = false; }
         },
         async pagar() {
             this.err = {};
@@ -306,16 +356,28 @@ SC.views.Checkout = {
                     this.pedidoId = r.data.id;
                     SC.cart.vaciarLocal();
                 }
+                // 2a) PayPal: crear la orden y redirigir a PayPal
+                if (this.pago.metodo === 'PayPal') {
+                    if (this.paypal.demo) return this.$router.replace('/paypal-demo/' + this.pedidoId);
+                    const o = await SC.api.post('/pagos/paypal/crear', { pedido_id: this.pedidoId });
+                    window.location.href = o.data.url;
+                    return;                      // la página se abandona; al volver lo atiende PayPalRetorno
+                }
                 // 2) Cobrar
                 const cuerpo = { pedido_id: this.pedidoId, metodo: this.pago.metodo };
                 if (this.pago.metodo === 'Tarjeta') {
                     cuerpo.tarjeta = { numero: this.pago.numero, titular: this.pago.titular,
                                        vencimiento: this.pago.vencimiento, cvv: this.pago.cvv };
-                } else if (this.pago.metodo === 'Transferencia') {
+                } else {
                     cuerpo.comprobante = this.pago.comprobante.trim();
+                    if (this.pago.imagen) cuerpo.imagen = this.pago.imagen;
                 }
-                await SC.api.post('/pagos/procesar', cuerpo);
+                const r = await SC.api.post('/pagos/procesar', cuerpo);
                 this.pago.numero = ''; this.pago.cvv = '';          // no dejamos datos de tarjeta en memoria
+                if (r.data.pendiente) {
+                    SC.store.ok('Comprobante enviado. El vendedor verificará tu pago.');
+                    return this.$router.replace({ path: '/mis-pedidos/' + this.pedidoId, query: { pendiente: 1 } });
+                }
                 SC.store.ok('¡Pago aprobado! Tu comprobante ya está listo.');
                 this.$router.replace({ path: '/mis-pedidos/' + this.pedidoId, query: { exito: 1 } });
             } catch (e) {
@@ -334,6 +396,91 @@ SC.views.Checkout = {
             } finally {
                 this.procesando = false;
             }
+        }
+    }
+};
+
+
+/**
+ * Retorno desde PayPal: #/paypal-retorno?pedido=ID&token=ORDEN
+ * Captura la orden en el servidor y verifica monto/estado antes de dar el pedido por pagado.
+ */
+SC.views.PayPalRetorno = {
+    template: `
+      <div class="centrado">
+        <div v-if="!error" class="tarjeta">
+          <h1>Confirmando tu pago con PayPal…</h1>
+          <p class="sub">No cierres esta ventana.</p>
+        </div>
+        <div v-else class="tarjeta">
+          <h1>No pudimos confirmar el pago</h1>
+          <div class="mensaje-error" role="alert">{{ error }}</div>
+          <p class="sub">Si PayPal te cobró, escribe al vendedor indicando el pedido #{{ pedido }}.</p>
+          <router-link :to="'/pagar/' + pedido" class="btn btn-primario">Reintentar el pago</router-link>
+          <router-link to="/mis-pedidos" class="btn btn-secundario">Mis pedidos</router-link>
+        </div>
+      </div>`,
+    data() { return { error: '', pedido: Number(this.$route.query.pedido) || 0 }; },
+    async created() {
+        const orden = this.$route.query.token;
+        if (!this.pedido || !orden) { this.error = 'Faltan datos del pago de PayPal.'; return; }
+        try {
+            const r = await SC.api.post('/pagos/paypal/capturar', { pedido_id: this.pedido, orden });
+            if (r.data && r.data.pendiente) {
+                SC.store.ok('Pago recibido. El vendedor lo verificará.');
+                return this.$router.replace({ path: '/mis-pedidos/' + this.pedido, query: { pendiente: 1 } });
+            }
+            SC.store.ok('¡Pago con PayPal aprobado!');
+            this.$router.replace({ path: '/mis-pedidos/' + this.pedido, query: { exito: 1 } });
+        } catch (e) {
+            if (e.status === 409 && /pagado/i.test(e.codigo || '')) return this.$router.replace('/mis-pedidos/' + this.pedido);
+            this.error = e.mensaje || 'Error al confirmar el pago.';
+        }
+    }
+};
+
+
+/** PayPal en modo demostración: pantalla que imita la aprobación del pago (no cobra dinero). */
+SC.views.PayPalDemo = {
+    template: `
+      <div class="centrado">
+        <div class="tarjeta paypal-demo">
+          <h1><span class="pp-logo">Pay<span>Pal</span></span> <small>(simulación)</small></h1>
+          <p v-if="cargando" class="sub">Cargando…</p>
+          <template v-else>
+            <p class="sub">Pagar a <strong>SmartCell Commerce</strong></p>
+            <p class="pp-monto">US$ {{ usd }} <small>({{ $bs(total) }})</small></p>
+            <div class="campo"><label>Cuenta PayPal</label><input type="text" :value="correo" disabled></div>
+            <div v-if="error" class="mensaje-error" role="alert">{{ error }}</div>
+            <button class="btn btn-primario btn-bloque" :disabled="procesando" @click="aprobar">{{ procesando ? 'Procesando…' : 'Aprobar y pagar' }}</button>
+            <router-link :to="'/pagar/' + pedidoId" class="btn btn-secundario btn-bloque">Cancelar</router-link>
+            <p class="sub">Pantalla de demostración: no se realiza ningún cobro real.</p>
+          </template>
+        </div>
+      </div>`,
+    data() { return { pedidoId: Number(this.$route.params.pedidoId), total: 0, tc: 6.96, cargando: true, procesando: false, error: '' }; },
+    computed: {
+        usd() { return (this.total / this.tc).toFixed(2); },
+        correo() { return SC.store.user ? SC.store.user.email : ''; }
+    },
+    async created() {
+        try {
+            const p = (await SC.api.get('/pedidos/' + this.pedidoId)).data;
+            if (['Pagado', 'Por_verificar'].includes(p.estado_pago) || p.estado_envio === 'Cancelado') return this.$router.replace('/mis-pedidos/' + this.pedidoId);
+            this.total = p.total;
+            this.tc = ((await SC.api.get('/pagos/config')).data.tipo_cambio) || 6.96;
+            this.cargando = false;
+        } catch (e) { SC.store.error(e.mensaje); this.$router.replace('/mis-pedidos'); }
+    },
+    methods: {
+        async aprobar() {
+            this.procesando = true; this.error = '';
+            try {
+                await SC.api.post('/pagos/paypal/simular', { pedido_id: this.pedidoId });
+                SC.store.ok('¡Pago con PayPal aprobado!');
+                this.$router.replace({ path: '/mis-pedidos/' + this.pedidoId, query: { exito: 1 } });
+            } catch (e) { this.error = e.mensaje || 'No se pudo completar el pago.'; }
+            finally { this.procesando = false; }
         }
     }
 };

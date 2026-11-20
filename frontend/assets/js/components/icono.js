@@ -17,6 +17,8 @@ SC.ICONOS = {
     check:     'M5 13l4 4L19 7',
     mas:       'M12 5v14M5 12h14',
     buscar:    'M11 18a7 7 0 100-14 7 7 0 000 14zM21 21l-5-5',
+    sol:       'M12 17a5 5 0 100-10 5 5 0 000 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+    luna:      'M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z',
     salir:     'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9',
     menu:      'M3 6h18M3 12h18M3 18h18',
     cerrar:    'M6 6l12 12M18 6L6 18',
@@ -52,4 +54,20 @@ SC.Icono = {
                  <path :d="ruta"/>
                </svg>`,
     computed: { ruta() { return SC.ICONOS[this.nombre] || ''; } }
+};
+
+
+/** Botón para cambiar entre tema claro y oscuro (se recuerda en el navegador) */
+SC.TemaBoton = {
+    template: `<button type="button" class="btn-icono btn-tema" @click="alternar" :title="claro ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'" :aria-label="claro ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'">
+        <sc-icono :nombre="claro ? 'luna' : 'sol'" :tam="20"/>
+      </button>`,
+    data() { return { claro: document.documentElement.getAttribute('data-tema') === 'claro' }; },
+    methods: {
+        alternar() {
+            this.claro = !this.claro;
+            document.documentElement.setAttribute('data-tema', this.claro ? 'claro' : 'oscuro');
+            try { localStorage.setItem('sc_tema', this.claro ? 'claro' : 'oscuro'); } catch (e) { /* sin almacenamiento */ }
+        }
+    }
 };

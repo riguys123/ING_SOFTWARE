@@ -1,0 +1,2 @@
+Coloca aqui el QR real de tu banco con el nombre qr-pago.png (o cambia la ruta en frontend/assets/js/config.js).
+Si no existe, el checkout muestra un QR de demostracion.

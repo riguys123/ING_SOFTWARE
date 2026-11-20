@@ -17,15 +17,15 @@ SC.views.Pedidos = {
           <div class="campo">
             <label for="pp">Pago</label>
             <select id="pp" v-model="filtros.estado_pago" @change="alFiltrar(false)">
-              <option value="">Todos</option><option>Pendiente</option><option>Pagado</option><option>Rechazado</option>
+              <option value="">Todos</option><option>Pendiente</option><option value="Por_verificar">Por verificar</option><option>Pagado</option><option>Rechazado</option>
             </select>
           </div>
           <div class="campo">
             <label for="pe">Envío</label>
             <select id="pe" v-model="filtros.estado_envio" @change="alFiltrar(false)">
               <option value="">Todos</option>
-              <option value="Pendiente">Sin despachar</option><option value="En_preparacion">En preparación</option>
-              <option value="En_camino">En camino</option><option value="Entregado">Entregado</option><option value="Cancelado">Cancelado</option>
+              <option value="Pendiente">Sin despachar</option><option value="En_preparacion">En preparación</option><option value="Empacado">Empacado</option>
+              <option value="En_camino">En camino</option><option value="Entregado">Entregado</option><option value="Finalizado">Finalizado</option><option value="Cancelado">Cancelado</option>
             </select>
           </div>
         </div>
@@ -107,6 +107,12 @@ SC.views.PedidoDetalle = {
             </div>
           </div>
 
+          <div v-if="p.estado_pago === 'Por_verificar'" class="mensaje-aviso" role="status">
+            <strong>Pago por verificar.</strong>
+            <template v-if="staff">El cliente envió su comprobante. Confírmalo o recházalo en <router-link :to="{ path: '/pagos', query: { estado: 'Por_verificar' } }">Pagos</router-link>.</template>
+            <template v-else>Recibimos tu comprobante. Cuando el vendedor confirme que el dinero llegó, prepararemos tu pedido y te avisaremos por WhatsApp.</template>
+          </div>
+
           <div class="encabezado-pagina">
             <div>
               <h1>Pedido #{{ p.id }}</h1>
@@ -124,6 +130,17 @@ SC.views.PedidoDetalle = {
               <span class="paso-punto">{{ k < avance ? '✓' : k + 1 }}</span><span class="paso-texto">{{ s.texto }}</span>
             </li>
           </ol>
+
+          <section v-if="!staff && p.estado_envio === 'Entregado'" class="tarjeta recepcion">
+            <h2>¿Ya recibiste tu pedido?</h2>
+            <p class="sub">Tu pedido figura como entregado. Confirma la recepción para cerrar el proceso y cuéntanos cómo te fue.</p>
+            <div class="estrellas" role="radiogroup" aria-label="Calificación">
+              <button v-for="n in 5" :key="n" type="button" class="estrella" :class="{ activa: n <= nota }" :aria-label="n + ' estrellas'" @click="nota = n">★</button>
+            </div>
+            <div class="campo"><label for="cmt">Comentario (opcional)</label><input id="cmt" type="text" v-model.trim="comentario" maxlength="300" placeholder="Ej: llegó rápido y bien empacado"></div>
+            <button class="btn btn-primario" :disabled="confirmandoRecepcion" @click="confirmarRecepcion">{{ confirmandoRecepcion ? 'Enviando…' : 'Sí, recibí mi pedido' }}</button>
+          </section>
+          <p v-if="!staff && p.estado_envio === 'Finalizado'" class="mensaje-ok">¡Gracias! Confirmaste la recepción de tu pedido<template v-if="p.despacho && p.despacho.calificacion"> y lo calificaste con {{ p.despacho.calificacion }} de 5</template>.</p>
 
           <div class="grid-2">
             <section class="tarjeta">
@@ -160,8 +177,10 @@ SC.views.PedidoDetalle = {
                   <template v-if="p.notas"><dt>Notas</dt><dd>{{ p.notas }}</dd></template>
                   <template v-if="p.despacho">
                     <dt>Guía</dt><dd><strong>{{ p.despacho.codigo_guia }}</strong></dd>
+                    <template v-if="p.despacho.empacado_en"><dt>Empacado</dt><dd>{{ fecha(p.despacho.empacado_en) }} · {{ p.despacho.bultos }} bulto(s)<template v-if="staff && p.despacho.empacador"> · {{ p.despacho.empacador }}</template></dd></template>
                     <dt>Repartidor</dt><dd>{{ p.despacho.repartidor || 'Por asignar' }}</dd>
-                    <template v-if="p.despacho.entregado_en"><dt>Entregado</dt><dd>{{ fecha(p.despacho.entregado_en) }}</dd></template>
+                    <template v-if="p.despacho.entregado_en"><dt>Entregado</dt><dd>{{ fecha(p.despacho.entregado_en) }}<template v-if="p.despacho.receptor"> · recibió {{ p.despacho.receptor }}</template></dd></template>
+                    <template v-if="p.despacho.finalizado_en"><dt>Finalizado</dt><dd>{{ fecha(p.despacho.finalizado_en) }}<template v-if="p.despacho.calificacion"> · {{ '★'.repeat(p.despacho.calificacion) }}{{ '☆'.repeat(5 - p.despacho.calificacion) }}</template></dd></template>
                   </template>
                 </dl>
               </section>
@@ -208,22 +227,22 @@ SC.views.PedidoDetalle = {
         </sc-modal>
       </div>`,
     data() {
-        return { p: null, cargando: true, confirmar: false, cancelando: false,
-                 tiposMensaje: { confirmacion: 'Confirmación del pedido', comprobante: 'Comprobante', envio: 'Pedido en camino', entrega: 'Pedido entregado' } };
+        return { p: null, cargando: true, confirmar: false, cancelando: false, nota: 5, comentario: '', confirmandoRecepcion: false,
+                 tiposMensaje: { confirmacion: 'Confirmación del pedido', comprobante: 'Comprobante', empacado: 'Pedido empacado', envio: 'Pedido en camino', entrega: 'Pedido entregado' } };
     },
     computed: {
         staff() { return !SC.store.esCliente; },
         pasos() {
-            return [{ texto: 'Pedido creado' }, { texto: 'Pago aprobado' }, { texto: 'En preparación' }, { texto: 'En camino' }, { texto: 'Entregado' }];
+            return [{ texto: 'Pedido creado' }, { texto: this.p && this.p.estado_pago === 'Por_verificar' ? 'Pago por verificar' : 'Pago aprobado' }, { texto: 'En preparación' }, { texto: 'Empacado' }, { texto: 'En camino' }, { texto: 'Entregado' }, { texto: 'Finalizado' }];
         },
         /** Cuántos pasos de la línea de tiempo ya se cumplieron */
         avance() {
             if (!this.p) return 0;
             if (this.p.estado_pago !== 'Pagado') return 1;
-            return { Pendiente: 2, En_preparacion: 3, En_camino: 4, Entregado: 5 }[this.p.estado_envio] || 2;
+            return { Pendiente: 2, En_preparacion: 3, Empacado: 4, En_camino: 5, Entregado: 6, Finalizado: 7 }[this.p.estado_envio] || 2;
         },
         puedePagar() {
-            return this.p && this.p.estado_pago !== 'Pagado' && this.p.estado_envio !== 'Cancelado';
+            return this.p && !['Pagado', 'Por_verificar'].includes(this.p.estado_pago) && this.p.estado_envio !== 'Cancelado';
         },
         puedeCancelar() { return this.puedePagar && (!this.staff || SC.store.puedeEscribir('ventas')); }
     },
@@ -234,6 +253,15 @@ SC.views.PedidoDetalle = {
     },
     methods: {
         fecha: SC.util.fecha,
+        /** El cliente confirma que recibió el pedido: cierra el proceso (Finalizado) */
+        async confirmarRecepcion() {
+            this.confirmandoRecepcion = true;
+            try {
+                this.p = (await SC.api.post('/pedidos/' + this.p.id + '/recepcion', { calificacion: this.nota, comentario: this.comentario })).data;
+                SC.store.ok('¡Gracias! Pedido finalizado.');
+            } catch (e) { SC.store.error(e.mensaje); }
+            finally { this.confirmandoRecepcion = false; }
+        },
         /** Al abrir el enlace de WhatsApp se marca el mensaje como enviado */
         async marcarEnviado(m) {
             if (m.estado === 'Enviado') return;

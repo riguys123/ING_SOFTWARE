@@ -66,7 +66,7 @@ SC.views.Mensajes = {
     data() {
         return { items: [], meta: null, cargando: true, pagina: 1, temporizador: null, abierto: 0,
                  filtros: { q: '', estado: 'Pendiente' },
-                 tipos: { confirmacion: '✅ Confirmación del pedido', comprobante: '🧾 Comprobante', envio: '🚚 Pedido en camino', entrega: '📦 Pedido entregado' } };
+                 tipos: { confirmacion: '✅ Confirmación del pedido', comprobante: '🧾 Comprobante', empacado: '📦 Pedido empacado', envio: '🚚 Pedido en camino', entrega: '📦 Pedido entregado' } };
     },
     computed: { puedeEscribir() { return SC.store.puedeEscribir('ventas'); } },
     created() { this.cargar(); },

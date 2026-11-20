@@ -17,10 +17,13 @@ SC.router = VueRouter.createRouter({
 
         // ---- Tienda ----
         { path: '/tienda',                component: SC.views.Catalogo,        meta: { abierta: true, tienda: true } },
+        { path: '/showcase',              component: SC.views.Showcase,       meta: { abierta: true, tienda: true } },
         { path: '/tienda/:id(\\d+)',      component: SC.views.ProductoDetalle, meta: { abierta: true, tienda: true } },
         { path: '/carrito',               component: SC.views.Carrito,         meta: { modulo: 'tienda', tienda: true } },
         { path: '/checkout',              component: SC.views.Checkout,        meta: { modulo: 'tienda', tienda: true } },
         { path: '/pagar/:pedidoId(\\d+)', component: SC.views.Checkout,        meta: { modulo: 'tienda', tienda: true } },
+        { path: '/paypal-demo/:pedidoId(\\d+)', component: SC.views.PayPalDemo, meta: { modulo: 'tienda', tienda: true } },
+        { path: '/paypal-retorno',        component: SC.views.PayPalRetorno, meta: { modulo: 'tienda', tienda: true } },
         { path: '/mis-pedidos',           component: SC.views.Pedidos,         meta: { modulo: 'tienda', tienda: true } },
         { path: '/mis-pedidos/:id(\\d+)', component: SC.views.PedidoDetalle,   meta: { modulo: 'tienda', tienda: true } },
 
@@ -33,6 +36,7 @@ SC.router = VueRouter.createRouter({
         { path: '/informes',              component: SC.views.Informes,        meta: { modulo: 'informes' } },
         { path: '/inventario',            component: SC.views.Inventario,      meta: { modulo: 'inventario' } },
         { path: '/pagos',                 component: SC.views.Pagos,           meta: { modulo: 'cobranzas' } },
+        { path: '/preparacion',           component: SC.views.Preparacion,    meta: { modulo: 'preparacion' } },
         { path: '/despachos',             component: SC.views.Despachos,       meta: { modulo: 'distribucion' } },
 
         // Comprobante: lo ven el cliente (el suyo) y el personal de ventas; el servidor verifica a quién pertenece

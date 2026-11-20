@@ -119,9 +119,7 @@ function svg_banner(string $titulo, string $subtitulo, string $etiqueta, string 
     } else {
         $deco .= '<g filter="url(#sombra)"><rect x="900" y="110" width="150" height="190" rx="42" fill="#0f172a"/><rect x="910" y="120" width="130" height="170" rx="32" fill="' . $c2 . '"/></g>';
     }
-    $cuerpo = $deco
-        . '<rect x="70" y="70" width="190" height="42" rx="21" fill="#fff" fill-opacity=".22"/>' . svg_texto($etiqueta, 165, 99, 22, '#ffffff', '700')
-        . svg_texto($titulo, 70, 202, 62, '#ffffff', '800', 'start')
-        . svg_texto($subtitulo, 70, 258, 28, '#ffffff', '500', 'start');
+    // El texto del banner lo pone la tienda (HTML); la imagen solo lleva el fondo y la ilustración
+    $cuerpo = $deco;
     return svg_envolver($cuerpo, 1200, 400, $c1, $c2);
 }

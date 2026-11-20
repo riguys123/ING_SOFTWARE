@@ -97,6 +97,7 @@ SC.MENU = [
     { clave: 'promociones',         grupo: 'Operación', texto: 'Promociones',         ruta: '/promociones',    icono: 'oferta' },
     { clave: 'inventario',          grupo: 'Operación', texto: 'Inventario',          ruta: '/inventario',     icono: 'caja' },
     { clave: 'cobranzas',           grupo: 'Operación', texto: 'Pagos',               ruta: '/pagos',          icono: 'billetera' },
+    { clave: 'preparacion',         grupo: 'Operación', texto: 'Preparación y empaque', ruta: '/preparacion', icono: 'caja' },
     { clave: 'distribucion',        grupo: 'Operación', texto: 'Despachos',           ruta: '/despachos',      icono: 'camion' },
     { clave: 'informes',            grupo: 'Operación', texto: 'Informes',            ruta: '/informes',       icono: 'grafico' },
     { clave: 'seguridad_usuarios',  grupo: 'Seguridad', texto: 'Usuarios',            ruta: '/usuarios',       icono: 'usuarios' },
@@ -156,9 +157,10 @@ SC.util = {
     /** Etiqueta y color de cada estado: [texto, clase de badge] */
     ESTADOS: {
         pago:  { Pendiente: ['Pago pendiente', 'badge-warn'], Pagado: ['Pagado', 'badge-ok'], Rechazado: ['Pago rechazado', 'badge-error'],
-                 Aprobado: ['Aprobado', 'badge-ok'] },
+                 Por_verificar: ['Por verificar', 'badge-warn'], Aprobado: ['Aprobado', 'badge-ok'] },
         envio: { Pendiente: ['Sin despachar', 'badge-rol'], En_preparacion: ['En preparación', 'badge-info'],
-                 En_camino: ['En camino', 'badge-warn'], Entregado: ['Entregado', 'badge-ok'], Cancelado: ['Cancelado', 'badge-error'] },
+                 Empacado: ['Empacado', 'badge-info'], En_camino: ['En camino', 'badge-warn'], Entregado: ['Entregado', 'badge-ok'],
+                 Finalizado: ['Finalizado', 'badge-ok'], Cancelado: ['Cancelado', 'badge-error'] },
         imei:  { Disponible: ['Disponible', 'badge-ok'], Vendido: ['Vendido', 'badge-warn'], Entregado: ['Entregado', 'badge-info'] }
     }
 };

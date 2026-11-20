@@ -25,11 +25,7 @@ SC.agregarAlCarrito = async function (router, productoId, cantidad) {
 SC.views.Catalogo = {
     template: `
       <div>
-        <sc-banner v-if="promos.length" :promos="promos" @ir="irPromo"/>
-        <section v-else class="hero">
-          <h1>Tu próximo celular, con <span class="acento">IMEI registrado</span></h1>
-          <p>Equipos nuevos y sellados, accesorios y complementos. Pago seguro y envío a tu domicilio.</p>
-        </section>
+        <sc-presentacion compacto class="presentacion-inicio"/>
 
         <nav class="categorias" aria-label="Categorías">
           <button class="chip-cat" :class="{ activo: !f.categoria && !f.oferta }" @click="elegirCategoria('')">
@@ -216,9 +212,9 @@ SC.views.ProductoDetalle = {
         <p v-else-if="!p" class="tarjeta vacio-caja">Este producto no existe o ya no está disponible.</p>
         <div v-else class="detalle-producto">
           <div>
-            <div class="detalle-foto tarjeta">
+            <div class="detalle-escena">
               <span v-if="p.descuento_pct > 0" class="badge-oferta esquina grande">-{{ p.descuento_pct }}%</span>
-              <sc-foto :fotos="p.fotos" :marca="p.marca" :modelo="p.modelo" :indice="foto"/>
+              <sc-escena :producto="p" :foto="foto" entrada/>
             </div>
             <div v-if="p.fotos.length > 1" class="miniaturas">
               <button v-for="(f, k) in p.fotos" :key="f" :class="{ activa: k === foto }" @click="foto = k" :aria-label="'Foto ' + (k + 1)">

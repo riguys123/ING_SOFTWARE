@@ -93,7 +93,9 @@ smartcell/
 | Pantalla "No se pudo iniciar la aplicación" | No hay internet y faltan los archivos de `vendor/` (ver arriba). |
 | Login responde "ruta no existe" / 404 en `/api/...` | `mod_rewrite` o `.htaccess` desactivados. Solución rápida: en `frontend/assets/js/config.js` pon `API_BASE: '../backend/public/index.php/api'`. |
 | Error 500 / "could not find driver" | Falta activar `pdo_sqlite` en `php.ini` (paso 3). |
-| "No existe la base de datos" | Regenérala (sección 3). |
+| "La base de datos todavía no existe" | La carpeta se copió sin la base (`database/smartcell.sqlite`). Créala con `C:\xampp\php\php.exe database\seeder.php` (sección 3). |
+| "La base de datos es de una versión anterior a estos archivos" | Se actualizaron los archivos pero la base es vieja. Recréala con el mismo comando del seeder (borra los datos y deja los de ejemplo). La versión del esquema está en `SCHEMA_VERSION` (`backend/src/config.php`) y en `PRAGMA user_version` (`database/schema.sql`); súbela en los dos sitios cada vez que cambie el esquema. |
+| "Ocurrió un error interno del servidor" | Error no previsto: la causa exacta queda en `C:\xampp\apache\logs\error.log`. |
 
 ### Alternativa sin Apache (VS Code)
 Desde la carpeta del proyecto: `php -S localhost:8000 dev-router.php` y abre http://localhost:8000/frontend/
@@ -128,6 +130,7 @@ El estado del IMEI es `Disponible → Vendido → Entregado`. `productos.stock_a
 | Admin (gerente/propietario) | admin@smartcell.com | `Admin123!` |
 | Vendedor (encargado) | vendedor@smartcell.com | `Smart1234!` |
 | Repartidor (encargado del envío) | repartidor@smartcell.com | `Smart1234!` |
+| Empaque (prepara y empaca pedidos) | empaque@smartcell.com | `Smart1234!` |
 | Cliente | cliente@smartcell.com | `Smart1234!` |
 | Cliente (2.º) | lucia@smartcell.com | `Smart1234!` |
 
@@ -140,6 +143,7 @@ El estado del IMEI es `Disponible → Vendido → Entregado`. `productos.stock_a
 | Vendedor | vendedor@smartcell.com | `Smart1234!` |
 | Inventariado | inventariado@smartcell.com | `Smart1234!` |
 | Repartidor | repartidor@smartcell.com | `Smart1234!` |
+| Empaque | empaque@smartcell.com | `Smart1234!` |
 | Cobranzas | cobranzas@smartcell.com | `Smart1234!` |
 | Cliente | cliente@smartcell.com | `Smart1234!` |
 | Cliente (2.º) | lucia@smartcell.com | `Smart1234!` |
@@ -405,7 +409,7 @@ Las tablas se convierten en tarjetas en el celular (RNF-04).
 3. Intenta pagar con `4000 0000 0000 0002` → *Pago rechazado*. Cambia a `4242 4242 4242 4242` → aprobado: aparece el pedido con **su IMEI asignado** y la línea de tiempo.
 4. **Admin** (`admin@smartcell.com`): el Panel muestra ingresos, ventas de 7 días, stock bajo y el pedido nuevo **con sus IMEI**. En *Inventario* el stock bajó y esos IMEI están en `Vendido`.
 5. **Inventariado**: *Inventario → Ingresar equipos*; pega IMEI válidos, uno inválido y uno repetido y mira el resultado.
-6. **Repartidor** (`repartidor@smartcell.com`): *Despachos → Marcar en camino → Marcar entregado*; los IMEI pasan a `Entregado`.
+6. **Empaque** (`empaque@smartcell.com`): *Preparación y empaque → verificar equipos → Marcar como empacado*. Luego el **Repartidor** (`repartidor@smartcell.com`): *Despachos → Salir a entregar → Registrar entrega*; los IMEI pasan a `Entregado`. Finalmente el cliente confirma la recepción (sección 13).
 7. **Cobranzas**: *Pagos* con el rechazo y el aprobado. **Vendedor**: intenta `#/productos-admin` y ve que solo puede leer.
 
 
@@ -416,7 +420,7 @@ Las tablas se convierten en tarjetas en el celular (RNF-04).
 
 > **Importante al actualizar:** el esquema y los roles cambiaron. Ejecuta `php database/seeder.php` (borra y recrea los datos de ejemplo).
 
-### 9.1 Los 4 roles
+### 9.1 Los roles (4 en el Sprint 3; el rol Empaque se agregó después)
 
 | Módulo | Admin | Vendedor | Repartidor | Cliente |
 |---|---|---|---|---|
@@ -426,7 +430,7 @@ Las tablas se convierten en tarjetas en el celular (RNF-04).
 | Promociones | total | total | — | — |
 | Inventario | total | total | — | — |
 | Pedidos y mensajes de WhatsApp | total | total | — | — |
-| Cobranzas | total | lectura | — | — |
+| Cobranzas (verificar QR y depósitos) | total | total | — | — |
 | Distribución (despachos) | total | lectura | total | — |
 | Informes | total | lectura | — | — |
 | Tienda (comprar) | — | — | — | total |
@@ -464,3 +468,75 @@ Selector de 7/30/90 días, comparación con el período anterior, gráfico de in
 - El envío por WhatsApp es **manual y local** (una persona pulsa Enviar); no hay envío automático sin una API de WhatsApp Business.
 - La pasarela de pagos sigue siendo simulada.
 - La interfaz del Sprint 3 se verificó con revisión de sintaxis y pruebas de la API (permisos por rol, concurrencia, descuentos, informes), pero **hay que probarla en un navegador**; si ves un error en la consola (F12), envíalo para corregirlo.
+
+
+---
+
+## 10. Cobro con QR y depósito bancario (verificación)
+
+Pedido del ingeniero: completar el cobro con QR o depósito. Ahora funciona así:
+
+1. **Cliente:** en el checkout elige **QR** (escanea el QR de la tienda) o **Transferencia/depósito** (ve banco, cuenta y titular). Paga por fuera, escribe el **N° de operación** y, si quiere, **adjunta la foto del comprobante**. Pulsa *Enviar comprobante*.
+2. **Sistema:** el pedido queda **Por verificar**. Todavía **no** se descuenta stock ni se despacha. El cliente ve el aviso en su pedido y no puede pagarlo ni cancelarlo dos veces.
+3. **Vendedor o Admin (Pagos):** ve los cobros por verificar (con el N° y la foto), y pulsa **Confirmar** o **Rechazar** (con motivo).
+   - *Confirmar:* el pedido pasa a Pagado, se descuenta el stock, se asignan los IMEI, se crea el despacho y se generan la confirmación y el comprobante de WhatsApp. Si ya no hay stock, la confirmación se revierte entera.
+   - *Rechazar:* el pedido vuelve a "Pago rechazado" con el motivo y el cliente puede enviar otro comprobante.
+4. La tarjeta sigue siendo la pasarela simulada (aprobación inmediata).
+
+**Datos de cobro de la tienda:** `frontend/assets/js/config.js` (`PAGO`: banco, cuenta, titular y ruta del QR). Para usar el QR real, copia la imagen como `frontend/assets/img/qr-pago.png`; si no existe se muestra un QR de demostración.
+
+**API nueva:** `POST /pagos/comprobante` (sube la foto) · `POST /pagos/procesar` responde **202** para QR/transferencia · `POST /pagos/:id/confirmar` · `POST /pagos/:id/rechazar {motivo}` (módulo cobranzas, nivel total) · `GET /pagos?estado=Por_verificar`.
+
+**Cambios en roles:** el Vendedor ahora tiene Cobranzas con nivel total (antes solo lectura) para poder verificar pagos.
+
+**Nota:** la preparación y empaque con rol específico y el cierre de la entrega se implementaron después (ver sección 13).
+
+> Hay que ejecutar `php database/seeder.php` otra vez (cambió el esquema; borra los datos de ejemplo anteriores). Las fotos de comprobante son privadas solo por su nombre aleatorio; en un sistema real irían en una carpeta protegida.
+
+
+## 11. Pago con PayPal (API REST v2, modo sandbox)
+
+Flujo: el cliente elige PayPal → el servidor crea la orden (`POST /api/pagos/paypal/crear`) → el cliente aprueba en PayPal → PayPal vuelve a `/frontend/?paypal=ok&pedido=ID&token=ORDEN` → el servidor **captura** la orden (`POST /api/pagos/paypal/capturar`) y verifica estado `COMPLETED`, moneda USD, monto igual al esperado y `reference_id` `PED-<id>`. Solo entonces el pedido pasa a Pagado y se despacha. Una orden no se puede reutilizar en otro pedido. Si PayPal cobró pero ya no hay stock, el pago queda "Por verificar" para el vendedor.
+
+El total en Bs se convierte a USD con `PAYPAL_TIPO_CAMBIO` (por defecto 6.96).
+
+### Configuración (sandbox)
+1. https://developer.paypal.com → Apps & Credentials → **Sandbox** → Create App → copiar *Client ID* y *Secret*.
+2. En *Testing Tools → Sandbox Accounts* usar la cuenta **Personal** (comprador) para probar el pago.
+3. **Render:** Environment → agregar `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` (opcionales `PAYPAL_MODO=sandbox`, `PAYPAL_TIPO_CAMBIO=6.96`).
+4. **XAMPP:** copiar `backend/src/paypal.local.example.php` a `backend/src/paypal.local.php` y completar las claves (este archivo está en `.gitignore`: nunca se sube a GitHub).
+
+Sin credenciales, PayPal aparece deshabilitado en el checkout y el resto de métodos sigue funcionando.
+
+**Estado de pruebas:** el backend se probó contra un servidor PayPal simulado (crear, capturar, monto distinto, orden falsa, reutilización, permisos). No se probó aún contra el sandbox real de PayPal.
+
+## 12. Presentación con celulares reales
+
+La portada del catálogo reproduce una presentación (ciudad de noche, rayos de luz, celular en 3D) con estos modelos, definidos en `frontend/assets/js/config.js` (`SC_CONFIG.PRESENTACION`): iPhone 15 Pro, Pixel 8, Tecno Spark 20 Pro, Honor X7b y Moto G84 5G. Las fotos recortadas están en `frontend/assets/img/telefonos/`.
+
+- Base de datos nueva: `php database/seeder.php` ya los incluye.
+- Base de datos existente (sin borrar datos): `php database/actualizar_telefonos.php` agrega el iPhone 15 Pro y asigna las fotos reales.
+
+
+## 13. Preparación, empaque, entrega y cierre del pedido
+
+Se completó el ciclo de vida del pedido, con un responsable distinto en cada etapa:
+
+| Etapa | Estado del pedido | Quién | Qué registra |
+|---|---|---|---|
+| Pago confirmado | En preparación | (automático) | Descuenta stock, asigna IMEI, crea el despacho y la guía |
+| Preparación y empaque | **Empacado** | rol **Empaque** | Verifica cada equipo y su IMEI (lista de verificación obligatoria), n.º de bultos, nota, quién empacó y cuándo |
+| Salida a reparto | **En camino** | Repartidor | Qué repartidor lo recogió |
+| Entrega | **Entregado** | Repartidor | Quién recibió, observación y hora; los IMEI pasan a Entregado |
+| Cierre | **Finalizado** | **Cliente** (o Ventas) | Confirmación de recepción y calificación de 1 a 5 con comentario opcional |
+
+- Nuevo rol **Empaque** (`empaque@smartcell.com`) y nuevo módulo **Preparación y empaque** (ahora son 14 módulos y 5 roles).
+- El rol Empaque solo ve los pedidos **En preparación** y **Empacados**; en cuanto el repartidor sale a entregar, el pedido deja de aparecerle.
+- El repartidor solo ve pedidos ya empacados; no puede saltarse el empaque (el servidor valida cada transición).
+- El cliente ve la línea de tiempo completa (7 pasos) y, cuando el pedido figura como entregado, un cuadro "¿Ya recibiste tu pedido?" con estrellas.
+- Si el cliente no confirma, Ventas/Admin puede **Cerrar pedido** desde Despachos.
+- Al empacar se genera un mensaje automático de WhatsApp ("tu pedido está empacado").
+
+Nuevos endpoints: `PATCH /api/logistica/despachos/:id/empacar`, `POST /api/logistica/despachos/:id/finalizar`, `POST /api/pedidos/:id/recepcion`, `GET /api/preparacion/despachos`.
+
+**Actualizar una base existente:** el esquema cambió (estados y columnas nuevas), así que se debe recrear con `php database/seeder.php` (borra los datos de ejemplo y los vuelve a crear).

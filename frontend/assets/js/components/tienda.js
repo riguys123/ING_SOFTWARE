@@ -50,10 +50,12 @@ SC.TiendaBar = {
           <router-link to="/tienda" class="tbar-marca">Smart<span>Cell</span></router-link>
           <nav class="tbar-links">
             <router-link to="/tienda">Catálogo</router-link>
+            <router-link to="/showcase">Presentación</router-link>
             <router-link v-if="store.esCliente" to="/mis-pedidos">Mis pedidos</router-link>
             <router-link v-if="store.user && !store.esCliente" to="/panel">Ir al panel</router-link>
           </nav>
           <div class="tbar-acciones">
+            <sc-tema-boton/>
             <router-link v-if="!store.user || store.esCliente" to="/carrito" class="tbar-carrito" aria-label="Carrito de compras">
               <sc-icono nombre="carrito" :tam="22"/>
               <span v-if="cart.unidades" class="contador">{{ cart.unidades }}</span>
@@ -120,7 +122,10 @@ SC.Banner = {
               <h2>{{ actual.titulo }}</h2>
               <p v-if="actual.descripcion">{{ actual.descripcion }}</p>
               <small>{{ vigencia(actual) }}</small>
-              <button class="btn btn-primario" @click="$emit('ir', actual)">{{ actual.producto_id ? 'Ver producto' : 'Ver ofertas' }}</button>
+              <div class="banner-botones">
+                <button class="btn btn-primario" @click="$emit('ir', actual)">{{ actual.producto_id ? 'Ver producto' : 'Ver ofertas' }}</button>
+                <router-link to="/showcase" class="btn btn-video">▶ Ver presentación</router-link>
+              </div>
             </div>
           </div>
         </transition>
